@@ -1,312 +1,146 @@
 """
-Simulator API implementation for development without actual heater access.
+YAML file-based register read/write. Function module, analogous to api.py (HTTP).
 
-This module provides simulator implementations of API functions that maintain
-register state in memory and persist it to a YAML file. It also provides
-utilities for enabling and routing to simulation mode.
+All functions take state_file as the first parameter. No classes; operations
+perform load/modify/save on the file.
 """
 
-import os
-import inspect
-import functools
-import yaml
-import aiofiles
-from pathlib import Path
-from typing import Dict, Optional, Callable, Any
-
 import logging
-from ..registers.utils import (
-    reg_to_int,
-    reg_address_to_int,
-    set_bit,
-    get_bit,
-    int_to_reg,
-)
+from pathlib import Path
+from typing import Dict
+
+import aiofiles
+import yaml
+
+from ..registers.utils import reg_address_to_int, reg_to_int
 
 logger = logging.getLogger(__name__)
 
+# Ensure YAML output quotes string keys and values (register hex format)
+def _quote_str(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
 
-def is_simulation_mode() -> bool:
-    """Check if simulation mode is enabled via environment variable."""
-    return os.getenv("SIMULATION_MODE", "").lower() in ("1", "true", "yes", "on")
+
+yaml.add_representer(str, _quote_str)
 
 
-def with_simulator(simulator_func: Callable[..., Any]) -> Callable[..., Any]:
+def _resolve_state_file(state_file: str) -> Path:
+    """Resolve state_file: absolute as-is, relative under package data/."""
+    path = Path(state_file)
+    if path.is_absolute():
+        return path
+    component_dir = Path(__file__).parent.parent
+    return (component_dir / "data" / state_file).resolve()
+
+
+def _str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
+    """Quote all strings in YAML output (register hex values and keys)."""
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+
+
+async def _load_registers(state_file: str) -> Dict[str, str]:
+    """Load register state from YAML file. Returns empty dict on missing/error."""
+    path = _resolve_state_file(state_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        async with aiofiles.open(path, "r") as f:
+            content = await f.read()
+            return yaml.safe_load(content) or {}
+    except Exception as e:
+        logger.warning(f"Could not load state from {path}: {e}")
+        return {}
+
+
+async def _save_registers(state_file: str, registers: Dict[str, str]) -> None:
+    """Save register state to YAML file."""
+    path = _resolve_state_file(state_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        content = yaml.safe_dump(
+            registers,
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=True,
+        )
+        async with aiofiles.open(path, "w") as f:
+            await f.write(content)
+    except Exception as e:
+        logger.warning(f"Could not save state to {path}: {e}")
+
+
+async def read_register(state_file: str, register: str) -> str:
     """
-    Decorator that routes function calls to simulator implementation when simulation mode is enabled.
-
-    The decorator automatically extracts the parameters needed by the simulator function
-    from the original function call, skipping parameters like `session` and `api_base_url`
-    that are only needed for real API calls.
+    Read a single register from the YAML state file.
 
     Args:
-        simulator_func: The simulator function to call when simulation mode is enabled.
-                       Must have a signature that is a subset of the decorated function's signature.
+        state_file: Path to the YAML state file (required).
+        register: Register address (e.g. "0b55").
 
     Returns:
-        Decorated function that routes to simulator or real implementation.
-
-    Example:
-        @with_simulator(simulator_read_register)
-        async def read_register(session, api_base_url, register):
-            # Real implementation
-            ...
+        Hex string value (defaults to "0000" if register not in file).
     """
-
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        # Get parameter names from simulator function signature
-        simulator_sig = inspect.signature(simulator_func)
-        simulator_param_names = list(simulator_sig.parameters.keys())
-
-        @functools.wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Get parameter names from original function signature
-            func_sig = inspect.signature(func)
-
-            # Bind arguments to parameter names
-            bound_args = func_sig.bind(*args, **kwargs)
-            bound_args.apply_defaults()
-
-            # Check simulation_mode parameter
-            sim_mode = bound_args.arguments.get("simulation_mode")
-            if sim_mode is None:
-                # Fall back to environment variable for backward compatibility
-                sim_mode = is_simulation_mode()
-            # If sim_mode is explicitly True or False, use that value
-
-            if sim_mode:
-                logger.debug(f"Routing {func.__name__} to simulator implementation")
-                # Extract only the parameters needed by the simulator function
-                simulator_kwargs = {
-                    param_name: bound_args.arguments[param_name]
-                    for param_name in simulator_param_names
-                    if param_name in bound_args.arguments
-                }
-
-                return await simulator_func(**simulator_kwargs)
-            else:
-                return await func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-class SimulatorRegisterState:
-    """Manages simulator register state with file-based persistence."""
-
-    def __init__(self, state_file: Optional[str] = None):
-        """
-        Initialize simulator register state.
-
-        Args:
-            state_file: Path to state file. If None, uses SIMULATION_STATE_FILE
-                       env var or defaults to "simulation_state.yaml"
-                       If an absolute path is provided, it's used as-is.
-                       If a relative path is provided, it's prepended with "data/"
-        """
-        if state_file is None:
-            state_file = os.getenv("SIMULATION_STATE_FILE", "simulation_state.yaml")
-
-        yaml.add_representer(
-            str, self._str_presenter
-        )  # This ensures that all string keys and register values are quoted.
-
-        # Handle absolute vs relative paths
-        state_file_path = Path(state_file)
-        if state_file_path.is_absolute():
-            self.state_file = state_file_path
-        else:
-            component_dir_path = Path(__file__).parent.parent
-            self.state_file = component_dir_path / "data" / state_file
-        self.registers: Dict[str, str] = {}
-
-        # Ensure parent directory exists
-        self.state_file.parent.mkdir(parents=True, exist_ok=True)
-
-    async def _load_state(self) -> None:
-        """Load register state from file if it exists."""
-        try:
-            async with aiofiles.open(self.state_file, "r") as f:
-                content = await f.read()
-                self.registers = yaml.safe_load(content) or {}
-        except Exception as e:
-            logger.warning(
-                f"Could not load simulator state from {self.state_file}: {e}"
-            )
-            self.registers = {}
-
-    async def _save_state(self) -> None:
-        """Save register state to file."""
-        try:
-            content = yaml.safe_dump(
-                self.registers,
-                default_flow_style=False,
-                allow_unicode=True,
-                sort_keys=True,
-            )
-            async with aiofiles.open(self.state_file, "w") as f:
-                await f.write(content)
-
-        except Exception as e:
-            logger.warning(f"Could not save simulator state to {self.state_file}: {e}")
-
-    async def get_register(self, register: str) -> str:
-        """
-        Get register value, returning default "0000" if not in state.
-
-        Args:
-            register: Register address
-
-        Returns:
-            Hex string value (defaults to "0000" if register not in state)
-        """
-        await self._load_state()
-        return self.registers.get(register, "0000")
-
-    async def set_register(self, register: str, value: str) -> None:
-        """
-        Set register value and save to file.
-
-        Args:
-            register: Register address
-            value: Hex string value
-        """
-        self.registers[register] = value
-        await self._save_state()
-
-    async def get_all_registers(self) -> Dict[str, str]:
-        """Get all registers in state."""
-        await self._load_state()
-        return self.registers.copy()
-
-    def _str_presenter(self, dumper, data) -> yaml.ScalarNode:
-        """
-        Custom representer to ensure all string keys and register values are quoted.
-
-        Register values are 4-character hex strings (e.g., "2000", "0800").
-        All other strings are also quoted for consistency.
-
-        Args:
-            dumper: YAML dumper
-            data: String data
-
-        Returns:
-            YAML scalar node
-        """
-        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
-
-
-# Global simulator state instance
-_simulator_state: Optional[SimulatorRegisterState] = None
-
-
-async def _get_simulator_state() -> SimulatorRegisterState:
-    """Get or create the global simulator state instance."""
-    global _simulator_state
-    if _simulator_state is None:
-        _simulator_state = SimulatorRegisterState()
-        await _simulator_state._load_state()
-    return _simulator_state
-
-
-async def simulator_read_register(register: str) -> Optional[str]:
-    """
-    Simulator implementation of read_register.
-
-    Args:
-        register: Register address
-
-    Returns:
-        Hex string value (defaults to "0000" if register not in state)
-    """
-    state = await _get_simulator_state()
-    value = await state.get_register(register)
-
+    registers = await _load_registers(state_file)
+    value = registers.get(register, "0000")
     int_val = reg_to_int(value)
-    logger.debug(f"[SIMULATOR] READ register {register}: {value} ({int_val})")
+    logger.debug(f"[YAML] READ register {register}: {value} ({int_val})")
     return value
 
 
-async def simulator_read_registers(start_register: str, count: int) -> Dict[str, str]:
+async def read_registers(
+    state_file: str,
+    start_register: str,
+    count: int,
+) -> Dict[str, str]:
     """
-    Simulator implementation of read_registers.
+    Read multiple registers from the YAML state file.
 
     Args:
-        start_register: Starting register address
-        count: Number of registers to read
+        state_file: Path to the YAML state file.
+        start_register: Starting register address (e.g. "0b00").
+        count: Number of registers to read.
 
     Returns:
-        Dictionary of register addresses to hex values
+        Dictionary mapping register addresses to hex values.
     """
-    state = await _get_simulator_state()
-
-    result = {}
+    registers = await _load_registers(state_file)
     start_int = reg_address_to_int(start_register)
     prefix = start_register[:2]
-
+    result: Dict[str, str] = {}
     for i in range(count):
         reg_int = start_int + i
         reg_str = f"{prefix}{reg_int:02x}"
-        value = await state.get_register(reg_str)
-        result[reg_str] = value
-
+        result[reg_str] = registers.get(reg_str, "0000")
     end_register = list(result.keys())[-1] if result else start_register
     logger.debug(
-        f"[SIMULATOR] READ registers {start_register} to {end_register} ({count} registers)"
+        f"[YAML] READ registers {start_register} to {end_register} ({count} registers)"
     )
     return result
 
 
-async def simulator_write_register(register: str, hex_value: str) -> bool:
+async def write_register(
+    state_file: str,
+    register: str,
+    hex_value: str,
+) -> bool:
     """
-    Simulator implementation of write_register.
+    Write a single register to the YAML state file.
 
     Args:
-        register: Register address
-        hex_value: Hex string value to write
+        state_file: Path to the YAML state file.
+        register: Register address (e.g. "0b55").
+        hex_value: Hex string value to write.
 
     Returns:
-        True (always succeeds in simulator mode)
+        True (always succeeds for file write).
     """
-    state = await _get_simulator_state()
-
-    old_value = await state.get_register(register)
+    registers = await _load_registers(state_file)
+    old_value = registers.get(register, "0000")
     old_int = reg_to_int(old_value)
     new_int = reg_to_int(hex_value)
-
-    await state.set_register(register, hex_value)
+    registers[register] = hex_value
+    await _save_registers(state_file, registers)
     logger.debug(
-        f"[SIMULATOR] WRITE register {register}: {old_value} → {hex_value} ({old_int} → {new_int})"
-    )
-    return True
-
-
-async def simulator_write_flag_bit(register: str, bit_index: int, state: bool) -> bool:
-    """
-    Simulator implementation of write_flag_bit.
-
-    Args:
-        register: Register address
-        bit_index: Bit index to modify
-        state: True to set bit, False to clear bit
-
-    Returns:
-        True (always succeeds in simulator mode)
-    """
-    simulator_state = await _get_simulator_state()
-
-    old_value = await simulator_state.get_register(register)
-    old_int = reg_to_int(old_value)
-    old_bit = get_bit(old_int, bit_index)
-
-    new_int = set_bit(old_int, bit_index, state)
-    new_value = int_to_reg(new_int)
-    new_bit = get_bit(new_int, bit_index)
-
-    await simulator_state.set_register(register, new_value)
-    logger.debug(
-        f"[SIMULATOR] BIT_WRITE register {register} bit {bit_index}: "
-        f"{old_bit} → {new_bit} ({old_value} → {new_value}, {old_int} → {new_int})"
+        f"[YAML] WRITE register {register}: {old_value} → {hex_value} "
+        f"({old_int} → {new_int})"
     )
     return True

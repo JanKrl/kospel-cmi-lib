@@ -2,14 +2,13 @@
 High-level abstraction layer for managing electric heater settings and reading sensor values.
 
 This module provides a registry-driven interface that automatically supports all settings
-defined in SETTINGS_REGISTRY, making it easy to add new settings without code changes.
+defined in SETTINGS_REGISTRY. The controller depends only on a RegisterBackend (HTTP or YAML).
 """
 
 import logging
-import aiohttp
 from typing import Dict, Any
 
-from ..kospel.api import read_registers, read_register, write_register
+from ..kospel.backend import RegisterBackend
 from .registry import SETTINGS_REGISTRY, SettingDefinition
 
 logger = logging.getLogger(__name__)
@@ -20,26 +19,21 @@ class HeaterController:
 
     This class uses SETTINGS_REGISTRY as the source of truth for all settings,
     providing dynamic property access to all registry-defined settings.
+    It reads and writes registers via the injected RegisterBackend.
     """
 
     def __init__(
         self,
-        session: aiohttp.ClientSession,
-        api_base_url: str,
-        simulation_mode: bool | None = None,
+        backend: RegisterBackend,
         registry: Dict[str, SettingDefinition] = SETTINGS_REGISTRY,
     ):
-        """Initialize with a session and API base URL.
+        """Initialize with a register backend.
 
         Args:
-            session: aiohttp ClientSession for API calls
-            api_base_url: Base URL for the heater API (e.g., "http://192.168.1.1/api/dev/65")
-            simulation_mode: If True, use simulator. If None, check environment variable.
+            backend: RegisterBackend for read/write (e.g. HttpRegisterBackend or YamlRegisterBackend)
             registry: Settings registry to use (defaults to SETTINGS_REGISTRY)
         """
-        self.session = session
-        self.api_base_url = api_base_url
-        self._simulation_mode = simulation_mode
+        self._backend = backend
         self._registry = registry
         self._settings: Dict[str, Any] = {}  # Stores all decoded setting values
         self._pending_writes: Dict[
@@ -50,22 +44,14 @@ class HeaterController:
         ] = {}  # Cached register values (only registry registers)
 
     async def refresh(self) -> None:
-        """Load all settings from the heater (makes a single API call to read all registers)."""
-        logger.info("Refreshing heater settings from API")
-        # Read all registers starting from 0b00
-        all_registers = await read_registers(
-            self.session,
-            self.api_base_url,
-            "0b00",
-            256,
-            simulation_mode=self._simulation_mode,
-        )
+        """Load all settings from the backend (single batch read of registers)."""
+        logger.info("Refreshing heater settings from backend")
+        all_registers = await self._backend.read_registers("0b00", 256)
 
         if not all_registers:
-            logger.warning("No registers read from heater")
+            logger.warning("No registers read from backend")
             return
 
-        # Parse settings from the register data
         self.from_registers(all_registers)
         logger.info("Heater settings refreshed successfully")
 
@@ -157,12 +143,7 @@ class HeaterController:
             AttributeError: If setting doesn't exist or is read-only
         """
         # Handle private attributes normally
-        if name.startswith("_") or name in (
-            "session",
-            "api_base_url",
-            "_simulation_mode",
-            "_registry",
-        ):
+        if name.startswith("_") or name in ("_backend", "_registry"):
             super().__setattr__(name, value)
             return
 
@@ -213,12 +194,7 @@ class HeaterController:
             original_hex = self._register_cache.get(register)
             if original_hex is None:
                 logger.debug(f"Reading register {register} for write operation")
-                original_hex = await read_register(
-                    self.session,
-                    self.api_base_url,
-                    register,
-                    simulation_mode=self._simulation_mode,
-                )
+                original_hex = await self._backend.read_register(register)
                 if original_hex is None:
                     logger.error(
                         f"Failed to read register {register} for write operation"
@@ -250,12 +226,8 @@ class HeaterController:
 
             # Write the register if it changed
             if current_hex != original_hex:
-                write_success = await write_register(
-                    self.session,
-                    self.api_base_url,
-                    register,
-                    current_hex,
-                    simulation_mode=self._simulation_mode,
+                write_success = await self._backend.write_register(
+                    register, current_hex
                 )
                 if write_success:
                     logger.info(

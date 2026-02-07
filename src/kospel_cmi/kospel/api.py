@@ -1,32 +1,23 @@
 """
-Dedicated module for all Kospel heater API interactions.
+Dedicated module for HTTP API calls to the Kospel heater.
 
-This module centralizes all HTTP API calls to the heater, making it easier to
-implement simulator mode and maintain consistent error handling.
+This module contains only HTTP logic. Register backend abstraction (HTTP vs YAML)
+lives in kospel/backend.py; the controller uses a RegisterBackend, not this API directly.
 """
 
 import logging
 import aiohttp
 from typing import Optional, Dict
 
-from ..registers.utils import reg_to_int, int_to_reg, set_bit
-from .simulator import (
-    simulator_read_register,
-    simulator_read_registers,
-    simulator_write_register,
-    simulator_write_flag_bit,
-    with_simulator,
-)
+from ..registers.utils import reg_to_int
 
 logger = logging.getLogger(__name__)
 
 
-@with_simulator(simulator_read_register)
 async def read_register(
     session: aiohttp.ClientSession,
     api_base_url: str,
     register: str,
-    simulation_mode: bool | None = None,
 ) -> Optional[str]:
     """
     Read a single register from the heater.
@@ -63,13 +54,11 @@ async def read_register(
         return None
 
 
-@with_simulator(simulator_read_registers)
 async def read_registers(
     session: aiohttp.ClientSession,
     api_base_url: str,
     start_register: str,
     count: int,
-    simulation_mode: bool | None = None,
 ) -> Dict[str, str]:
     """
     Read multiple registers from the heater in a single batch call.
@@ -103,13 +92,11 @@ async def read_registers(
         return {}
 
 
-@with_simulator(simulator_write_register)
 async def write_register(
     session: aiohttp.ClientSession,
     api_base_url: str,
     register: str,
     hex_value: str,
-    simulation_mode: bool | None = None,
 ) -> bool:
     """
     Write a value to a single register.
@@ -146,55 +133,3 @@ async def write_register(
             f"Unexpected error writing register {register}: {e}", exc_info=True
         )
         return False
-
-
-@with_simulator(simulator_write_flag_bit)
-async def write_flag_bit(
-    session: aiohttp.ClientSession,
-    api_base_url: str,
-    register: str,
-    bit_index: int,
-    state: bool,
-    simulation_mode: bool | None = None,
-) -> bool:
-    """
-    Write a single flag bit in a register using read-modify-write pattern.
-
-    Args:
-        session: aiohttp ClientSession
-        api_base_url: Base URL for the heater API
-        register: Register address (e.g., "0b55")
-        bit_index: Bit index to modify (0-15)
-        state: True to set bit, False to clear bit
-
-    Returns:
-        True if write succeeded, False otherwise
-    """
-    # Read current value
-    hex_val = await read_register(session, api_base_url, register, simulation_mode)
-    if hex_val is None:
-        logger.error(f"Flag bit write failed: Could not read {register}")
-        return False
-
-    # Modify the bit
-    current_int = reg_to_int(hex_val)
-    new_int = set_bit(current_int, bit_index, state)
-    old_bit = (current_int >> bit_index) & 1
-    new_bit = 1 if state else 0
-
-    logger.debug(
-        f"Flag bit write: register {register}, bit {bit_index}: "
-        f"{old_bit} → {new_bit} ({hex_val} / {current_int} → {int_to_reg(new_int)} / {new_int})"
-    )
-
-    # Only write if value actually changed
-    if current_int == new_int:
-        logger.debug(
-            f"Flag bit {bit_index} in register {register} already in desired state"
-        )
-        return True
-
-    new_hex = int_to_reg(new_int)
-    return await write_register(
-        session, api_base_url, register, new_hex, simulation_mode
-    )

@@ -53,19 +53,21 @@ The `SETTINGS_REGISTRY` is a central configuration that maps semantic setting na
 )
 ```
 
-### Decorator Pattern
+### Register Backend (Protocol)
 
-The `@with_simulator` decorator routes function calls to simulator implementations based on environment configuration:
+Register read/write is abstracted behind a `RegisterBackend` Protocol. The controller depends only on this interface; it does not know whether data comes from HTTP or from a YAML file.
 
-```python
-@with_simulator(simulator_read_register)
-async def read_register(session, api_base_url, register):
-    # Real implementation
-```
+- **Protocol** (`kospel/backend.py`): `read_register(register)`, `read_registers(start_register, count)`, `write_register(register, hex_value)`. No session, URL, or mode parameters.
+- **HttpRegisterBackend(session, api_base_url)**: implements the protocol via HTTP calls to the device.
+- **YamlRegisterBackend(state_file: str)**: implements the protocol using a YAML state file; the file path is a required constructor parameter (no environment variable).
+- **Construction**: The consumer chooses the backend when creating the controller, e.g. `HeaterController(backend=HttpRegisterBackend(session, api_base_url))` or `HeaterController(backend=YamlRegisterBackend(state_file="/path/to/state.yaml"))`.
+- **write_flag_bit**: Single implementation in `kospel/backend.py` as a **function** that takes the backend as first argument: `write_flag_bit(backend, register, bit_index, state)`. It is not a method on the backend; it uses `backend.read_register` and `backend.write_register`. One implementation for all backends.
+- **Why Protocol**: The controller and `write_flag_bit` need “something that can read/write registers”. A Protocol lets any object with the right methods be used. Alternatives (e.g. passing three callables) would require the caller to build closures over `session`/`api_base_url` or `state_file`; the Protocol keeps that state inside the backend object and keeps the interface explicit.
 
-This pattern enables:
-- **Transparent Simulation**: No code changes needed to switch between real/simulator
-- **Development Safety**: Test without physical hardware
+This gives:
+- **Single responsibility**: Controller logic is independent of transport.
+- **Testability**: Tests can use a mock backend or `YamlRegisterBackend` with a temporary file.
+- **No env-based routing**: No `simulation_mode` or env vars in the call chain.
 
 ### Protocol-based Type System
 
@@ -253,19 +255,20 @@ Decoder(Protocol[T]): ...
 - Read-modify-write pattern for registers with multiple settings
 - Only write if value actually changed
 
-### Simulator Implementation
+### YAML / simulator (function module)
 
-**State Persistence**:
-- In-memory dictionary: `Dict[str, str]` (register address → hex value)
-- YAML file persistence: `data/heater_mock_state.yaml`
-- Auto-save after each write operation
-- Auto-load on first read in simulator mode
+**Layout**: `kospel/simulator.py` is a **function module** like `api.py`: no classes, only async functions that take `state_file` as the first parameter.
 
-**Simulator Functions**:
-- Mirror real API function signatures (without `session` and `api_base_url`)
-- Maintain register state consistently
-- Support all read/write operations
-- Log operations for debugging
+- `read_register(state_file, register) -> str`
+- `read_registers(state_file, start_register, count) -> Dict[str, str]`
+- `write_register(state_file, register, hex_value) -> bool`
+
+Each call loads from or saves to the YAML file. `YamlRegisterBackend` in `backend.py` holds `state_file` and delegates to these functions.
+
+**State persistence**:
+- YAML file path is passed explicitly (no environment variable)
+- Load on each read; save after each write
+- Same contract as HTTP: controller code is identical for both backends
 
 
 ## Import Rules: Relative Imports Only
@@ -276,14 +279,14 @@ Decoder(Protocol[T]): ...
 
 ```python
 # ✅ CORRECT: Relative imports within integration
-from .kospel.api import read_registers
-from ..registers.utils import reg_to_int
+from .kospel.backend import HttpRegisterBackend, YamlRegisterBackend
+from .controller.api import HeaterController
 from .controller.registry import SETTINGS_REGISTRY
 from ..logging_config import get_logger
 
 # ❌ INCORRECT: Absolute imports
-from kospel.api import read_registers
-from registers.utils import reg_to_int
+from kospel.backend import HttpRegisterBackend
+from controller.api import HeaterController
 from controller.registry import SETTINGS_REGISTRY
 from logging_config import get_logger
 ```
@@ -292,7 +295,7 @@ from logging_config import get_logger
 
 1. **Same Package**: Use single dot (`.`) for modules in the same directory
    ```python
-   from .simulator import is_simulation_mode  # kospel/simulator.py from kospel/api.py
+   from .backend import RegisterBackend  # kospel/backend.py from kospel/api.py
    ```
 
 2. **Parent Package**: Use double dot (`..`) to go up one level
@@ -307,7 +310,7 @@ from logging_config import get_logger
 
 **Common Mistakes**:
 
-1. **Forgetting relative notation**: `from kospel.simulator import ...` instead of `from .simulator import ...`
+1. **Forgetting relative notation**: `from kospel.backend import ...` instead of `from .backend import ...`
 2. **Wrong level of dots**: Using `.` when you need `..` or vice versa
 3. **Mixing absolute and relative**: Some files use relative, others use absolute (inconsistent)
 
@@ -352,17 +355,17 @@ from logging_config import get_logger
 - 0.01 bar precision for pressure
 - No floating-point storage issues
 
-### Why Simulator Mode?
+### Why Register Backend Abstraction?
 
-**Problem**: Development and testing require physical heater hardware.
+**Problem**: Development and testing require physical heater hardware; mixing transport and “simulation mode” in the same functions led to complex parameter passing and env checks.
 
-**Solution**: Environment-variable controlled simulator mode with YAML state persistence.
+**Solution**: A `RegisterBackend` Protocol with two implementations—`HttpRegisterBackend(session, api_base_url)` and `YamlRegisterBackend(state_file: str)`. The controller receives a backend at construction; no environment variables or `simulation_mode` in the call chain.
 
 **Benefits**:
-- Develop without hardware
-- Test all code paths
-- Reproducible test scenarios
-- Offline development
+- Develop without hardware by using `YamlRegisterBackend(state_file="...")`
+- Controller logic identical for HTTP and YAML
+- Single place for `write_flag_bit` (function using any backend)
+- Configuration via constructor parameters only (URL or state file path)
 
 ## Dependencies
 

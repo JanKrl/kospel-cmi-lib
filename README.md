@@ -22,18 +22,20 @@ pip install kospel-cmi-lib
 
 ## Usage
 
-Use `aiohttp.ClientSession` and `HeaterController` to read and write heater settings:
+Create a register backend (HTTP or YAML), then pass it to `HeaterController`:
 
 ```python
 import asyncio
 import aiohttp
 from kospel_cmi.controller.api import HeaterController
+from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend
 
 
 async def main() -> None:
     api_base_url = "http://192.168.1.1/api/dev/65"  # Replace with your heater URL
     async with aiohttp.ClientSession() as session:
-        controller = HeaterController(session, api_base_url)
+        backend = HttpRegisterBackend(session, api_base_url)
+        controller = HeaterController(backend=backend)
         await controller.refresh()
         print(controller.heater_mode)  # Access registry-defined settings as attributes
         # controller.heater_mode = "manual"  # Modify (if writable)
@@ -43,14 +45,13 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-For offline development, enable the simulator (no HTTP calls):
+For offline development or tests, use the YAML backend (no HTTP):
 
 ```python
-controller = HeaterController(session, api_base_url, simulation_mode=True)
+backend = YamlRegisterBackend(state_file="/path/to/state.yaml")
+controller = HeaterController(backend=backend)
 await controller.refresh()
 ```
-
-You can also control simulation via the `SIMULATION_MODE` environment variable; see the [technical documentation](https://github.com/JanKrl/kospel-cmi-lib/blob/master/docs/technical.md).
 
 ## Documentation
 
