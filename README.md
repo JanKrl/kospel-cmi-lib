@@ -50,12 +50,12 @@ controller = HeaterController(session, api_base_url, simulation_mode=True)
 await controller.refresh()
 ```
 
-You can also control simulation via the `SIMULATION_MODE` environment variable; see the [technical documentation](docs/technical.md).
+You can also control simulation via the `SIMULATION_MODE` environment variable; see the [technical documentation](https://github.com/JanKrl/kospel-cmi-lib/blob/master/docs/technical.md).
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) — layers, components, and data flow
-- [Technical specifications](docs/technical.md) — data formats, protocols, testing, and coding standards
+- [Architecture](https://github.com/JanKrl/kospel-cmi-lib/blob/master/docs/architecture.md — layers, components, and data flow
+- [Technical specifications](https://github.com/JanKrl/kospel-cmi-lib/blob/master/docs/technical.md) — data formats, protocols, testing, and coding standards
 
 ## License
 
