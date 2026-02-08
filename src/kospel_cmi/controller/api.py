@@ -20,6 +20,10 @@ class HeaterController:
     This class uses SETTINGS_REGISTRY as the source of truth for all settings,
     providing dynamic property access to all registry-defined settings.
     It reads and writes registers via the injected RegisterBackend.
+
+    Supports async context manager protocol. When using HttpRegisterBackend,
+    call aclose() or use ``async with HeaterController(...)`` to release the
+    HTTP session when done.
     """
 
     def __init__(
@@ -42,6 +46,27 @@ class HeaterController:
         self._register_cache: Dict[
             str, str
         ] = {}  # Cached register values (only registry registers)
+
+    async def aclose(self) -> None:
+        """Release resources owned by the controller and its backend.
+
+        Calls the backend's aclose() if it has one (e.g. HttpRegisterBackend
+        closes the aiohttp ClientSession). Safe to call multiple times (idempotent).
+
+        Consumers should call aclose() when done with the controller (e.g. on
+        integration unload), or use the controller as an async context manager.
+        """
+        aclose = getattr(self._backend, "aclose", None)
+        if aclose is not None:
+            await aclose()
+
+    async def __aenter__(self) -> "HeaterController":
+        """Enter async context. Returns self."""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """Exit async context. Releases resources via aclose()."""
+        await self.aclose()
 
     async def refresh(self) -> None:
         """Load all settings from the backend (single batch read of registers)."""

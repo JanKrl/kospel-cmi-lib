@@ -47,6 +47,8 @@ class RegisterBackend(Protocol):
 class HttpRegisterBackend:
     """Backend that uses HTTP API to read/write registers."""
 
+    _session: Optional[aiohttp.ClientSession]
+
     def __init__(
         self,
         session: aiohttp.ClientSession,
@@ -81,6 +83,16 @@ class HttpRegisterBackend:
         return await kospel_api.write_register(
             self._session, self._api_base_url, register, hex_value
         )
+
+    async def aclose(self) -> None:
+        """Close the HTTP session and release resources.
+
+        Safe to call multiple times (idempotent). After closing, the backend
+        must not be used for further read/write operations.
+        """
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
 
 class YamlRegisterBackend:

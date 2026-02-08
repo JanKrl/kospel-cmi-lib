@@ -20,3 +20,7 @@
   - `kospel_cmi.controller.registry` (SettingDefinition)
   - `kospel_cmi.kospel.backend` (YamlRegisterBackend, write_flag_bit)
   - `kospel_cmi.controller.api` (HeaterController with mock RegisterBackend)
+  - Resource lifecycle: `HeaterController.aclose()` and `async with HeaterController(...)`
+    close HTTP session via `HttpRegisterBackend.aclose()`. YamlRegisterBackend has no
+    closeable resources. Unit tests for aclose and context manager in
+    `test_backend.py` and `test_heater_controller.py`.

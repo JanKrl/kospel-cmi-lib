@@ -2,9 +2,31 @@
 
 from pathlib import Path
 
+import aiohttp
 import pytest
 
-from kospel_cmi.kospel.backend import YamlRegisterBackend, write_flag_bit
+from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend, write_flag_bit
+
+
+class TestHttpRegisterBackendAclose:
+    """Tests for HttpRegisterBackend.aclose()."""
+
+    @pytest.mark.asyncio
+    async def test_aclose_closes_session(self) -> None:
+        """aclose() closes the underlying ClientSession."""
+        async with aiohttp.ClientSession() as session:
+            backend = HttpRegisterBackend(session, "http://localhost/api/dev/65")
+            assert not session.closed
+            await backend.aclose()
+            assert session.closed
+
+    @pytest.mark.asyncio
+    async def test_aclose_idempotent(self) -> None:
+        """Calling aclose() multiple times does not raise."""
+        async with aiohttp.ClientSession() as session:
+            backend = HttpRegisterBackend(session, "http://localhost/api/dev/65")
+            await backend.aclose()
+            await backend.aclose()  # Second call should not raise
 
 
 class TestYamlRegisterBackend:

@@ -193,7 +193,7 @@ Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
 
 **Session Management**:
 - `aiohttp.ClientSession` passed explicitly (no global state)
-- Session lifecycle managed by caller (context manager recommended)
+- When using `HttpRegisterBackend`, call `HeaterController.aclose()` when done, or use `async with HeaterController(backend=...)` to release the session automatically
 - Supports connection pooling and keep-alive
 
 **Function Signatures**:
