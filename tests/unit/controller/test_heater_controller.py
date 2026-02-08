@@ -66,3 +66,66 @@ class TestHeaterControllerWithMockBackend:
         success = await controller.save()
         assert success is True
         assert backend.registers.get("0b55") is not None
+
+    @pytest.mark.asyncio
+    async def test_aclose_calls_backend_aclose_when_present(self) -> None:
+        """aclose() calls backend.aclose() when backend has aclose method."""
+
+        class BackendWithAclose(MockRegisterBackend):
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                self.aclose_called = False
+
+            async def aclose(self) -> None:
+                self.aclose_called = True
+
+        backend = BackendWithAclose()
+        controller = HeaterController(backend=backend)
+        await controller.aclose()
+        assert backend.aclose_called is True
+
+    @pytest.mark.asyncio
+    async def test_aclose_no_op_when_backend_has_no_aclose(self) -> None:
+        """aclose() does not raise when backend has no aclose method."""
+        backend = MockRegisterBackend()
+        controller = HeaterController(backend=backend)
+        await controller.aclose()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_aclose_idempotent(self) -> None:
+        """Calling aclose() multiple times does not raise."""
+
+        class BackendWithAclose(MockRegisterBackend):
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                self.aclose_count = 0
+
+            async def aclose(self) -> None:
+                self.aclose_count += 1
+
+        backend = BackendWithAclose()
+        controller = HeaterController(backend=backend)
+        await controller.aclose()
+        await controller.aclose()
+        assert backend.aclose_count == 2  # Both calls forwarded (backend decides idempotency)
+
+    @pytest.mark.asyncio
+    async def test_context_manager_returns_self_and_calls_aclose_on_exit(
+        self,
+    ) -> None:
+        """async with HeaterController(...) returns self and calls aclose on exit."""
+
+        class BackendWithAclose(MockRegisterBackend):
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                self.aclose_called = False
+
+            async def aclose(self) -> None:
+                self.aclose_called = True
+
+        backend = BackendWithAclose()
+        controller = HeaterController(backend=backend)
+        async with controller as ctrl:
+            assert ctrl is controller
+            assert not backend.aclose_called
+        assert backend.aclose_called
