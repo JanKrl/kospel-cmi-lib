@@ -37,6 +37,8 @@ The system follows a strict 4-layer architecture with clear boundaries:
 
 ### Registry Pattern
 
+> **See also**: For complete registry system documentation, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
+
 The `SETTINGS_REGISTRY` is a central configuration that maps semantic setting names to their physical register locations and transformation logic. This pattern enables:
 
 - **Declarative Configuration**: Settings defined in one place
@@ -84,6 +86,8 @@ This provides:
 - **Flexibility**: No inheritance required
 
 ## Data Formats
+
+> **See also**: For detailed register encoding/decoding reference, see [`../src/kospel_cmi/registers/README.md`](../src/kospel_cmi/registers/README.md).
 
 ### Register Encoding
 
@@ -141,6 +145,8 @@ Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
 **Read-Modify-Write Pattern**: Flag bits require reading the current register value, modifying the specific bit, and writing back the entire register.
 
 ## Communication Protocol
+
+> **See also**: For detailed HTTP API endpoint reference, see [`../src/kospel_cmi/kospel/README.md`](../src/kospel_cmi/kospel/README.md).
 
 ### HTTP API
 
@@ -501,7 +507,16 @@ heater.from_registers(all_registers)
 
 ## References
 
-- **Architecture Diagram**: See `docs/architecture.mermaid`
-- **User Guide**: See `README.md`
-- **Roadmap**: See `docs/status.md`
+- **Architecture Diagram**: See [`architecture.md`](architecture.md)
+- **User Guide**: See [`../README.md`](../README.md)
+- **Development Guide**: See [`development.md`](development.md)
+- **Status**: See [`status.md`](status.md)
+
+### Module Documentation
+
+Detailed module-specific documentation is co-located with the code:
+
+- **[kospel/](../src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
+- **[registers/](../src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
+- **[controller/](../src/kospel_cmi/controller/README.md)** - SETTINGS_REGISTRY system
 
