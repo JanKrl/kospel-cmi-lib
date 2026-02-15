@@ -1,4 +1,4 @@
-"""Unit tests for controller.registry (SettingDefinition and SETTINGS_REGISTRY)."""
+"""Unit tests for controller.registry (SettingDefinition)."""
 
 import pytest
 
