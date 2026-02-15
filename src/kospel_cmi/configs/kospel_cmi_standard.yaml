@@ -1,0 +1,95 @@
+heater_mode:
+  register: "0b55"
+  decode: heater_mode
+  encode: heater_mode
+
+is_manual_mode_enabled:
+  register: "0b55"
+  bit_index: 9
+  decode:
+    type: map
+    true_value: ManualMode.ENABLED
+    false_value: ManualMode.DISABLED
+  encode:
+    type: map
+    true_value: ManualMode.ENABLED
+    false_value: ManualMode.DISABLED
+
+is_water_heater_enabled:
+  register: "0b55"
+  bit_index: 4
+  decode:
+    type: map
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED
+  encode:
+    type: map
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED
+
+is_pump_co_running:
+  register: "0b51"
+  bit_index: 0
+  decode:
+    type: map
+    true_value: PumpStatus.RUNNING
+    false_value: PumpStatus.IDLE
+
+is_pump_circulation_running:
+  register: "0b51"
+  bit_index: 1
+  decode:
+    type: map
+    true_value: PumpStatus.RUNNING
+    false_value: PumpStatus.IDLE
+
+valve_position:
+  register: "0b51"
+  bit_index: 2
+  decode:
+    type: map
+    true_value: ValvePosition.CO
+    false_value: ValvePosition.DHW
+
+manual_temperature:
+  register: "0b8d"
+  decode: scaled_temp
+  encode: scaled_temp
+
+room_temperature_economy:
+  register: "0b68"
+  decode: scaled_temp
+  encode: scaled_temp
+
+room_temperature_comfort:
+  register: "0b6a"
+  decode: scaled_temp
+  encode: scaled_temp
+
+room_temperature_comfort_plus:
+  register: "0b6b"
+  decode: scaled_temp
+  encode: scaled_temp
+
+room_temperature_comfort_minus:
+  register: "0b69"
+  decode: scaled_temp
+  encode: scaled_temp
+
+cwu_temperature_economy:
+  register: "0b66"
+  decode: scaled_temp
+  encode: scaled_temp
+
+cwu_temperature_comfort:
+  register: "0b67"
+  decode: scaled_temp
+  encode: scaled_temp
+
+pressure:
+  register: "0b8a"
+  decode: scaled_pressure
+
+room_temperature:
+  register: "0b6d"
+  decode: scaled_temp

@@ -226,3 +226,11 @@ def encode_scaled_pressure(
     except Exception as e:
         logger.error(f"Error encoding scaled pressure: {e}")
         return None
+
+
+# Registry for config loader: maps YAML encoder names to encoder functions.
+# "map" is special—built from params at load time via encode_map().
+ENCODER_REGISTRY: dict[str, Callable[..., Optional[str]]] = {
+    "heater_mode": encode_heater_mode,
+    "scaled_temp": encode_scaled_temp,
+}

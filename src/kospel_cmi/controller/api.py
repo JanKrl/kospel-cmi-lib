@@ -2,14 +2,14 @@
 High-level abstraction layer for managing electric heater settings and reading sensor values.
 
 This module provides a registry-driven interface that automatically supports all settings
-defined in SETTINGS_REGISTRY. The controller depends only on a RegisterBackend (HTTP or YAML).
+defined in the injected registry. The controller depends only on a RegisterBackend (HTTP or YAML).
 """
 
 import logging
 from typing import Dict, Any
 
 from ..kospel.backend import RegisterBackend
-from .registry import SETTINGS_REGISTRY, SettingDefinition
+from .registry import SettingDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class HeaterController:
     """High-level controller for managing heater settings and sensor values.
 
-    This class uses SETTINGS_REGISTRY as the source of truth for all settings,
+    This class uses the injected registry as the source of truth for all settings,
     providing dynamic property access to all registry-defined settings.
     It reads and writes registers via the injected RegisterBackend.
 
@@ -29,13 +29,13 @@ class HeaterController:
     def __init__(
         self,
         backend: RegisterBackend,
-        registry: Dict[str, SettingDefinition] = SETTINGS_REGISTRY,
+        registry: Dict[str, SettingDefinition],
     ):
-        """Initialize with a register backend.
+        """Initialize with a register backend and settings registry.
 
         Args:
             backend: RegisterBackend for read/write (e.g. HttpRegisterBackend or YamlRegisterBackend)
-            registry: Settings registry to use (defaults to SETTINGS_REGISTRY)
+            registry: Settings registry (e.g. from load_registry("kospel_cmi_standard"))
         """
         self._backend = backend
         self._registry = registry
@@ -94,7 +94,7 @@ class HeaterController:
         self._settings.clear()
         self._register_cache.clear()
 
-        # Iterate through all entries in SETTINGS_REGISTRY
+        # Iterate through all entries in registry
         for setting_name, setting_def in self._registry.items():
             register = setting_def.register
 

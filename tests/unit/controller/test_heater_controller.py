@@ -3,7 +3,10 @@
 import pytest
 
 from kospel_cmi.controller.api import HeaterController
+from kospel_cmi.controller.registry import load_registry
 from kospel_cmi.registers.enums import HeaterMode
+
+REGISTRY = load_registry("kospel_cmi_standard")
 
 
 class MockRegisterBackend:
@@ -41,7 +44,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "d700"}
         )
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         await controller.refresh()
         assert controller.get_setting("heater_mode") is not None
 
@@ -49,7 +52,7 @@ class TestHeaterControllerWithMockBackend:
     async def test_from_registers_decodes_registry_settings(self) -> None:
         """from_registers decodes only registry registers and fills cache."""
         backend = MockRegisterBackend()
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         registers = {"0b55": "d700"}
         controller.from_registers(registers)
         assert "0b55" in controller._register_cache
@@ -60,7 +63,7 @@ class TestHeaterControllerWithMockBackend:
     async def test_save_writes_modified_register_via_backend(self) -> None:
         """save() encodes pending writes and calls backend.write_register."""
         backend = MockRegisterBackend({"0b55": "d700"})
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         controller.from_registers(await backend.read_registers("0b00", 256))
         controller.set_setting("heater_mode", HeaterMode.WINTER)
         success = await controller.save()
@@ -80,7 +83,7 @@ class TestHeaterControllerWithMockBackend:
                 self.aclose_called = True
 
         backend = BackendWithAclose()
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         await controller.aclose()
         assert backend.aclose_called is True
 
@@ -88,7 +91,7 @@ class TestHeaterControllerWithMockBackend:
     async def test_aclose_no_op_when_backend_has_no_aclose(self) -> None:
         """aclose() does not raise when backend has no aclose method."""
         backend = MockRegisterBackend()
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         await controller.aclose()  # Should not raise
 
     @pytest.mark.asyncio
@@ -104,7 +107,7 @@ class TestHeaterControllerWithMockBackend:
                 self.aclose_count += 1
 
         backend = BackendWithAclose()
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         await controller.aclose()
         await controller.aclose()
         assert backend.aclose_count == 2  # Both calls forwarded (backend decides idempotency)
@@ -124,7 +127,7 @@ class TestHeaterControllerWithMockBackend:
                 self.aclose_called = True
 
         backend = BackendWithAclose()
-        controller = HeaterController(backend=backend)
+        controller = HeaterController(backend=backend, registry=REGISTRY)
         async with controller as ctrl:
             assert ctrl is controller
             assert not backend.aclose_called

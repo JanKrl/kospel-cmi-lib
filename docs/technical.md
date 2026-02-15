@@ -39,20 +39,26 @@ The system follows a strict 4-layer architecture with clear boundaries:
 
 > **See also**: For complete registry system documentation, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
 
-The `SETTINGS_REGISTRY` is a central configuration that maps semantic setting names to their physical register locations and transformation logic. This pattern enables:
+Settings are defined in YAML config files and loaded via `load_registry(name)`. The registry maps semantic setting names to `SettingDefinition` (register, decode/encode functions). This pattern enables:
 
-- **Declarative Configuration**: Settings defined in one place
+- **Declarative Configuration**: Settings defined in YAML; no hardcoded registry in Python
+- **Multiple Configs**: One file per device variant (e.g. `kospel_cmi_standard`, `kospel_cmi_pro`)
+- **Schema Validation**: Pydantic validates YAML at load time; invalid configs raise `RegistryConfigError`
 - **Automatic Property Generation**: Dynamic properties on `HeaterController`
-- **Type Safety**: Each setting has associated decode/encode functions
-- **Read-only Enforcement**: Settings without encoders are automatically read-only
+- **Read-only Enforcement**: Settings without `encode` in YAML are read-only
 
-**Example Registry Entry:**
+**Usage:**
 ```python
-"heater_mode": SettingDefinition(
-    register="0b55",
-    decode_function=decode_heater_mode,
-    encode_function=encode_heater_mode
-)
+registry = load_registry("kospel_cmi_standard")
+controller = HeaterController(backend=backend, registry=registry)
+```
+
+**Example YAML Entry:**
+```yaml
+heater_mode:
+  register: "0b55"
+  decode: heater_mode
+  encode: heater_mode
 ```
 
 ### Register Backend (Protocol)
@@ -62,7 +68,7 @@ Register read/write is abstracted behind a `RegisterBackend` Protocol. The contr
 - **Protocol** (`kospel/backend.py`): `read_register(register)`, `read_registers(start_register, count)`, `write_register(register, hex_value)`. No session, URL, or mode parameters.
 - **HttpRegisterBackend(session, api_base_url)**: implements the protocol via HTTP calls to the device.
 - **YamlRegisterBackend(state_file: str)**: implements the protocol using a YAML state file; the file path is a required constructor parameter (no environment variable).
-- **Construction**: The consumer chooses the backend when creating the controller, e.g. `HeaterController(backend=HttpRegisterBackend(session, api_base_url))` or `HeaterController(backend=YamlRegisterBackend(state_file="/path/to/state.yaml"))`.
+- **Construction**: The consumer creates backend and registry separately, then passes both: `HeaterController(backend=..., registry=load_registry("kospel_cmi_standard"))`.
 - **write_flag_bit**: Single implementation in `kospel/backend.py` as a **function** that takes the backend as first argument: `write_flag_bit(backend, register, bit_index, state)`. It is not a method on the backend; it uses `backend.read_register` and `backend.write_register`. One implementation for all backends.
 - **Why Protocol**: The controller and `write_flag_bit` need “something that can read/write registers”. A Protocol lets any object with the right methods be used. Alternatives (e.g. passing three callables) would require the caller to build closures over `session`/`api_base_url` or `state_file`; the Protocol keeps that state inside the backend object and keeps the interface explicit.
 
@@ -199,7 +205,7 @@ Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
 
 **Session Management**:
 - `aiohttp.ClientSession` passed explicitly (no global state)
-- When using `HttpRegisterBackend`, call `HeaterController.aclose()` when done, or use `async with HeaterController(backend=...)` to release the session automatically
+- When using `HttpRegisterBackend`, call `HeaterController.aclose()` when done, or use `async with HeaterController(backend=..., registry=...)` to release the session automatically
 - Supports connection pooling and keep-alive
 
 **Function Signatures**:
@@ -287,13 +293,17 @@ Each call loads from or saves to the YAML file. `YamlRegisterBackend` in `backen
 # ✅ CORRECT: Relative imports within integration
 from .kospel.backend import HttpRegisterBackend, YamlRegisterBackend
 from .controller.api import HeaterController
-from .controller.registry import SETTINGS_REGISTRY
+from .controller.registry import load_registry
 from ..logging_config import get_logger
+
+# Registry: load by name, pass to HeaterController
+registry = load_registry("kospel_cmi_standard")
+controller = HeaterController(backend=..., registry=registry)
 
 # ❌ INCORRECT: Absolute imports
 from kospel.backend import HttpRegisterBackend
 from controller.api import HeaterController
-from controller.registry import SETTINGS_REGISTRY
+from controller.registry import load_registry
 from logging_config import get_logger
 ```
 
@@ -495,8 +505,7 @@ heater.from_registers(all_registers)
 1. **Custom Exceptions**: Domain-specific error types
 2. **Input Validation**: Range checking for temperatures, pressures
 3. **Connection Pooling**: Optimize HTTP connection reuse
-4. **Configuration File**: Registers configuration in YAML file format
-5. **Device type recognition**: Recognize heater device type
+4. **Device type recognition**: Recognize heater device type
 
 ### Technical Debt
 
@@ -518,5 +527,5 @@ Detailed module-specific documentation is co-located with the code:
 
 - **[kospel/](../src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](../src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
-- **[controller/](../src/kospel_cmi/controller/README.md)** - SETTINGS_REGISTRY system
+- **[controller/](../src/kospel_cmi/controller/README.md)** - YAML registry config and load_registry
 
