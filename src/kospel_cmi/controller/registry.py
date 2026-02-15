@@ -8,27 +8,25 @@ import logging
 from importlib import resources
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field
 
+from ..registers import DECODER_REGISTRY, ENCODER_REGISTRY, ENUM_REGISTRY
 from ..registers.decoders import (
     Decoder,
     decode_map,
     decode_heater_mode,
     decode_scaled_temp,
     decode_scaled_pressure,
-    DECODER_REGISTRY,
 )
 from ..registers.encoders import (
     Encoder,
     encode_heater_mode,
     encode_map,
     encode_scaled_temp,
-    ENCODER_REGISTRY,
 )
-from ..registers.registry import ENUM_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -104,40 +102,55 @@ def _resolve_enum_path(path: str) -> Any:
     return getattr(enum_cls, member_name)
 
 
-def _resolve_decode(spec: Union[str, MapDecodeEncodeSpec], setting_name: str) -> Decoder:
-    """Resolve decode spec to a decoder callable."""
+def _resolve_spec(
+    spec: Optional[Union[str, MapDecodeEncodeSpec]],
+    setting_name: str,
+    *,
+    registry: dict[str, Any],
+    factory_fn: Callable[..., Any],
+    kind: str,
+) -> Optional[Any]:
+    """Resolve decode/encode spec to a callable. Returns None if spec is None."""
+    if spec is None:
+        return None
     if isinstance(spec, str):
-        if spec not in DECODER_REGISTRY:
+        if spec not in registry:
             raise RegistryConfigError(
-                f"Unknown decoder {spec!r} for setting {setting_name!r}. "
-                f"Known: {list(DECODER_REGISTRY.keys())}."
+                f"Unknown {kind} {spec!r} for setting {setting_name!r}. "
+                f"Known: {list(registry.keys())}."
             )
-        return DECODER_REGISTRY[spec]
+        return registry[spec]
     if spec.type == "map":
         true_val = _resolve_enum_path(spec.true_value)
         false_val = _resolve_enum_path(spec.false_value)
-        return decode_map(true_value=true_val, false_value=false_val)
-    raise RegistryConfigError(f"Unknown decode type {spec.type!r} for setting {setting_name!r}.")
+        return factory_fn(true_value=true_val, false_value=false_val)
+    raise RegistryConfigError(
+        f"Unknown {kind} type {spec.type!r} for setting {setting_name!r}."
+    )
+
+
+def _resolve_decode(spec: Union[str, MapDecodeEncodeSpec], setting_name: str) -> Decoder:
+    """Resolve decode spec to a decoder callable."""
+    result = _resolve_spec(
+        spec, setting_name,
+        registry=DECODER_REGISTRY,
+        factory_fn=decode_map,
+        kind="decoder",
+    )
+    assert result is not None  # decode is required
+    return result
 
 
 def _resolve_encode(
     spec: Optional[Union[str, MapDecodeEncodeSpec]], setting_name: str
 ) -> Optional[Encoder]:
     """Resolve encode spec to an encoder callable, or None for read-only."""
-    if spec is None:
-        return None
-    if isinstance(spec, str):
-        if spec not in ENCODER_REGISTRY:
-            raise RegistryConfigError(
-                f"Unknown encoder {spec!r} for setting {setting_name!r}. "
-                f"Known: {list(ENCODER_REGISTRY.keys())}."
-            )
-        return ENCODER_REGISTRY[spec]
-    if spec.type == "map":
-        true_val = _resolve_enum_path(spec.true_value)
-        false_val = _resolve_enum_path(spec.false_value)
-        return encode_map(true_value=true_val, false_value=false_val)
-    raise RegistryConfigError(f"Unknown encode type {spec.type!r} for setting {setting_name!r}.")
+    return _resolve_spec(
+        spec, setting_name,
+        registry=ENCODER_REGISTRY,
+        factory_fn=encode_map,
+        kind="encoder",
+    )
 
 
 def _parse_setting(setting_name: str, raw: dict[str, Any]) -> SettingDefinition:
