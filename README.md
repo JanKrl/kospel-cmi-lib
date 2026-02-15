@@ -118,6 +118,21 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[Architecture](docs/architecture.md)** - System design, layers, components, and data flow
 - **[Technical Specs](docs/technical.md)** - Implementation details, data formats, protocols, testing, and coding standards
 
+
+## Roadmap
+
+### `v1.0.0` Engine & Explorer
+
+1. Local control - basic device functions can be operated using the library
+2. Robust interface - an interface for 3rd party tools (i.e., Home Assistant integration)
+3. Reverse-engineering toolset - ease integration with other device types
+
+### `v2.0.0` Plug & Play for Kospel ecosystem
+
+1. Support multiple device types
+2. Device discovery
+3. Advanced state management (error and warning flags, fault detection, debug)
+
 ## References
 
 This library was reverse-engineered from JavaScript code used in the heater's web interface. Key findings:
