@@ -140,3 +140,12 @@ def decode_scaled_pressure(
         return reg_to_int(hex_val) / 100.0
     except (ValueError, TypeError):
         return None
+
+
+# Registry for config loader: maps YAML decoder names to decoder functions.
+# "map" is special—built from params at load time via decode_map().
+DECODER_REGISTRY: dict[str, Callable[..., Optional[object]]] = {
+    "heater_mode": decode_heater_mode,
+    "scaled_temp": decode_scaled_temp,
+    "scaled_pressure": decode_scaled_pressure,
+}

@@ -35,3 +35,13 @@ class PumpStatus(Enum):
 
     RUNNING = "Running"
     IDLE = "Idle"
+
+
+# Registry for resolving enum paths from YAML (e.g. "ManualMode.ENABLED" -> ManualMode.ENABLED)
+ENUM_REGISTRY: dict[str, type[Enum]] = {
+    "HeaterMode": HeaterMode,
+    "ManualMode": ManualMode,
+    "WaterHeaterEnabled": WaterHeaterEnabled,
+    "ValvePosition": ValvePosition,
+    "PumpStatus": PumpStatus,
+}
