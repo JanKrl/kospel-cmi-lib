@@ -6,58 +6,55 @@ This guide is for contributors and developers working on the kospel-cmi-lib proj
 
 To add a new setting to the heater controller:
 
-### 1. Add to `SETTINGS_REGISTRY`
+### 1. Add to YAML config
 
-Add the setting definition to `src/kospel_cmi/controller/registry.py`:
+Add the setting to `src/kospel_cmi/configs/kospel_cmi_standard.yaml` (or the config you use):
 
-```python
-"new_setting": SettingDefinition(
-    register="0bXX",
-    bit_index=Y,  # If it's a flag bit (omit for full register values)
-    decode_function=decode_new_setting_from_reg,
-    encode_function=encode_new_setting_to_reg  # Omit for read-only
-)
+**Simple decoder (no params):**
+```yaml
+new_setting:
+  register: "0b8d"
+  decode: scaled_temp
+  encode: scaled_temp
 ```
 
-### 2. Create decode function
-
-Create a decode function in `src/kospel_cmi/registers/decoders.py` (if needed):
-
-```python
-def decode_new_setting_from_reg(reg_hex: str, bit_index: Optional[int] = None) -> Optional[Type]:
-    """Decode the setting value from a register hex string."""
-    # For flag bits, use decode_bit_boolean or decode_map
-    # For full register values, use decode_scaled_temp, decode_scaled_pressure, etc.
+**Map type (bit → enum):**
+```yaml
+new_flag:
+  register: "0b55"
+  bit_index: 10
+  decode:
+    type: map
+    true_value: NewEnum.ENABLED
+    false_value: NewEnum.DISABLED
+  encode:
+    type: map
+    true_value: NewEnum.ENABLED
+    false_value: NewEnum.DISABLED
 ```
 
-### 3. Create encode function
+### 2. Register decoder/encoder (if new)
 
-Create an encode function in `src/kospel_cmi/registers/encoders.py` (if writable):
+If the setting uses a **new** decode/encode type, add it to the registries in `registers/`:
+- `DECODER_REGISTRY` in `registers/decoders.py`
+- `ENCODER_REGISTRY` in `registers/encoders.py`
+- `ENUM_REGISTRY` in `registers/enums.py` (for new enums)
 
-```python
-def encode_new_setting_to_reg(value: Type, bit_index: Optional[int], current_hex: Optional[str]) -> Optional[str]:
-    """Encode the setting value to a register hex string.
-    
-    Args:
-        value: The value to encode (enum, bool, float, etc.)
-        bit_index: Bit index if it's a flag bit (None for full register values)
-        current_hex: Current hex value of the register (required for read-modify-write)
-    """
-    # For flag bits: use encode_bit_boolean() or encode_map()
-    # For full register values: use int_to_reg() directly
-```
+For existing types (`scaled_temp`, `scaled_pressure`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
 
-### 4. Add enum
+### 3. Add enum (if needed)
 
-Add an enum in `src/kospel_cmi/registers/enums.py` (if needed):
+Add an enum in `src/kospel_cmi/registers/enums.py` and register it in `ENUM_REGISTRY`:
 
 ```python
-class NewSetting(Enum):
-    VALUE1 = "Value 1"
-    VALUE2 = "Value 2"
+class NewEnum(Enum):
+    ENABLED = "Enabled"
+    DISABLED = "Disabled"
+
+ENUM_REGISTRY["NewEnum"] = NewEnum
 ```
 
-**Note**: Once added to `SETTINGS_REGISTRY`, the setting will automatically be available as a dynamic property on `HeaterController`!
+**Note**: Once added to the YAML config, the setting will automatically be available as a dynamic property on `HeaterController` when using a registry loaded from that config.
 
 For more details on the registry system, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
 

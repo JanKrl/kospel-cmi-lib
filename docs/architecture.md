@@ -19,7 +19,7 @@ flowchart TB
     subgraph Controller["Layer: Controller (High-level API)"]
         direction TB
         HC["HeaterController\n(backend: RegisterBackend)"]
-        Reg["SETTINGS_REGISTRY\n(registry.py)"]
+        Reg["load_registry\n(configs/*.yaml)"]
         SD["SettingDefinition\n(register, decode, encode)"]
         HC --> Reg
         Reg --> SD
@@ -75,7 +75,7 @@ flowchart TB
 flowchart LR
     subgraph L1["controller"]
         api["api.py\nHeaterController"]
-        registry["registry.py\nSETTINGS_REGISTRY"]
+        registry["registry.py\nload_registry, SettingDefinition"]
     end
     subgraph L2["kospel"]
         backend["backend.py\nRegisterBackend, HttpBackend\nYamlBackend, write_flag_bit"]
@@ -109,11 +109,11 @@ flowchart LR
 %% - HttpRegisterBackend(session, api_base_url): implements Protocol via kospel.api HTTP calls.
 %% - YamlRegisterBackend(state_file: str): implements Protocol via file load/save; state_file is a required parameter (no env var).
 %% - write_flag_bit: single implementation (e.g. in backend.py), takes any RegisterBackend and uses read_register + set_bit + write_register; not part of Protocol; not duplicated in HTTP or YAML.
-%% - No backward compatibility requirement: API is HeaterController(backend=...) only; consumer builds HttpRegisterBackend or YamlRegisterBackend explicitly.
+%% - Consumer loads registry via load_registry(name), passes backend and registry to HeaterController.
 
 ## Architecture summary (for implementation)
 
-- **Controller** (`controller/api.py`): `HeaterController(backend: RegisterBackend, registry=...)`. No `session`, `api_base_url`, or `simulation_mode`. Uses only `backend.read_register`, `backend.read_registers`, `backend.write_register` (and if needed, a standalone `write_flag_bit(backend, ...)`).
+- **Controller** (`controller/api.py`): `HeaterController(backend: RegisterBackend, registry: Dict[str, SettingDefinition])`. Registry from `load_registry(name)`; configs in `configs/*.yaml`. Uses only `backend.read_register`, `backend.read_registers`, `backend.write_register` (and if needed, a standalone `write_flag_bit(backend, ...)`).
 - **RegisterBackend Protocol** (`kospel/backend.py`): methods `read_register(register) -> Optional[str]`, `read_registers(start_register, count) -> Dict[str, str]`, `write_register(register, hex_value) -> bool`. No transport-specific parameters.
 - **HttpRegisterBackend** (`kospel/backend.py`): constructor `(session: aiohttp.ClientSession, api_base_url: str)`. Implements Protocol by calling the HTTP-only functions from `kospel/api.py` (no decorators, no `simulation_mode`).
 - **YamlRegisterBackend** (`kospel/backend.py`): constructor `(state_file: str)` — path required, no environment variable for file location. Implements Protocol using in-memory state and YAML load/save (logic from current `simulator.py` / `SimulatorRegisterState`).
