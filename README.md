@@ -111,6 +111,7 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[kospel/](src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
 - **[controller/](src/kospel_cmi/controller/README.md)** - YAML registry config and load_registry
+- **[tools/](src/kospel_cmi/tools/README.md)** - Register scanner for reverse-engineering
 
 ### Project Documentation
 
@@ -145,7 +146,3 @@ This library was reverse-engineered from JavaScript code used in the heater's we
 ## License
 
 Apache License 2.0
-
-## Links
-
-- [Repository](https://github.com/JanKrl/kospel-cmi-lib)
