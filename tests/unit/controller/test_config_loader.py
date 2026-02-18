@@ -119,3 +119,9 @@ class TestRegistryConfigValidation:
             )
             with pytest.raises(RegistryConfigError, match="decode|validation"):
                 load_registry("missing", config_dir=path)
+
+    def test_map_without_bit_index_raises(self) -> None:
+        """Map decode/encode without bit_index raises RegistryConfigError at load time."""
+        config_dir = Path(__file__).resolve().parent.parent.parent / "fixtures" / "configs"
+        with pytest.raises(RegistryConfigError, match="bit_index is required"):
+            load_registry("bad_map", config_dir=config_dir)
