@@ -36,6 +36,7 @@ urls = { Repository = "https://github.com/JanKrl/kospel-cmi-lib" }
 [tool.uv.build-backend]
 module-name = "kospel_cmi"
 module-root = "src"
+source-include = ["src/kospel_cmi/configs/**"]
 
 [tool.ruff]
 line-length = 88
