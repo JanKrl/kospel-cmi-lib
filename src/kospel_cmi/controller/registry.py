@@ -156,6 +156,12 @@ def _resolve_encode(
 def _parse_setting(setting_name: str, raw: dict[str, Any]) -> SettingDefinition:
     """Parse raw YAML setting dict into SettingDefinition."""
     spec = SettingSpec.model_validate(raw)
+    decode_is_map = isinstance(spec.decode, MapDecodeEncodeSpec)
+    encode_is_map = spec.encode is not None and isinstance(spec.encode, MapDecodeEncodeSpec)
+    if (decode_is_map or encode_is_map) and spec.bit_index is None:
+        raise RegistryConfigError(
+            f"Setting {setting_name!r}: bit_index is required when decode or encode uses type: map."
+        )
     decode_fn = _resolve_decode(spec.decode, setting_name)
     encode_fn = _resolve_encode(spec.encode, setting_name)
     return SettingDefinition(

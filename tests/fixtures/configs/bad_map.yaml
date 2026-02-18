@@ -1,0 +1,11 @@
+# Map decode/encode without bit_index - should raise RegistryConfigError at load time
+bad_setting:
+  register: "0b55"
+  decode:
+    type: map
+    true_value: ManualMode.ENABLED
+    false_value: ManualMode.DISABLED
+  encode:
+    type: map
+    true_value: ManualMode.ENABLED
+    false_value: ManualMode.DISABLED
