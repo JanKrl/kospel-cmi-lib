@@ -12,7 +12,7 @@ from typing import Dict
 import aiofiles
 import yaml
 
-from ..registers.utils import reg_address_to_int, reg_to_int
+from ..registers.utils import int_to_reg_address, reg_address_to_int, reg_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ async def read_registers(
     result: Dict[str, str] = {}
     for i in range(count):
         reg_int = start_int + i
-        reg_str = f"{prefix}{reg_int:02x}"
+        reg_str = int_to_reg_address(prefix, reg_int)
         result[reg_str] = registers.get(reg_str, "0000")
     end_register = list(result.keys())[-1] if result else start_register
     logger.debug(

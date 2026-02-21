@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from kospel_cmi.registers.utils import reg_address_to_int
+from kospel_cmi.registers.utils import int_to_reg_address, reg_address_to_int
 from kospel_cmi.tools.register_scanner import (
     format_scan_result,
     scan_register_range,
@@ -26,7 +26,7 @@ class MockRegisterBackend:
         prefix = start_register[:2]
         for i in range(count):
             reg_int = start_int + i
-            reg_str = f"{prefix}{reg_int:02x}"
+            reg_str = int_to_reg_address(prefix, reg_int)
             result[reg_str] = self.registers.get(reg_str, "0000")
         return result
 
@@ -68,6 +68,13 @@ class TestScanRegisterRange:
         assert reg.raw_int == 0
         assert reg.scaled_temp == 0.0
         assert reg.scaled_pressure == 0.0
+
+    @pytest.mark.asyncio
+    async def test_overflow_raises_value_error(self) -> None:
+        """When start+count exceeds 256, int_to_reg_address raises ValueError."""
+        backend = MockRegisterBackend()
+        with pytest.raises(ValueError, match="outside 8-bit address space"):
+            await scan_register_range(backend, "0b80", 256)
 
     @pytest.mark.asyncio
     async def test_pressure_register_parsed(self) -> None:
@@ -124,6 +131,14 @@ class TestFormatScanResult:
         assert "0b00" in formatted
         assert "0b01" in formatted
         assert "empty hidden" not in formatted
+
+    @pytest.mark.asyncio
+    async def test_format_scan_result_end_register_4_char(self) -> None:
+        """format_scan_result displays end_register in 4-char format (0bXX)."""
+        backend = MockRegisterBackend({"0b00": "d700", "0b7f": "a401"})
+        result = await scan_register_range(backend, "0b00", 128)
+        formatted = format_scan_result(result, include_empty=True)
+        assert "0b00 - 0b7f" in formatted
 
 
 class TestSerializeScanResult:

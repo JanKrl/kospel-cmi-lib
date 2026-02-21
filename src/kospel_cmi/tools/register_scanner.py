@@ -23,7 +23,7 @@ from ..kospel.backend import (
     YamlRegisterBackend,
 )
 from ..registers.decoders import decode_scaled_pressure, decode_scaled_temp
-from ..registers.utils import get_bit, reg_address_to_int, reg_to_int
+from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int, reg_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ async def scan_register_range(
 
     for i in range(count):
         reg_int = start_int + i
-        reg_str = f"{prefix}{reg_int:02x}"
+        reg_str = int_to_reg_address(prefix, reg_int)
         hex_val = raw_registers.get(reg_str, "0000")
         interpretations.append(_interpret_register(reg_str, hex_val))
 
@@ -124,7 +124,7 @@ def format_scan_result(
     lines: list[str] = []
     end_int = reg_address_to_int(result.start_register) + result.count - 1
     prefix = result.start_register[:2]
-    end_register = f"{prefix}{end_int:02x}"
+    end_register = int_to_reg_address(prefix, end_int)
 
     if include_empty:
         displayed = result.registers

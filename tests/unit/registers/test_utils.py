@@ -7,6 +7,7 @@ from kospel_cmi.registers.utils import (
     int_to_reg,
     get_bit,
     set_bit,
+    int_to_reg_address,
     reg_address_to_int,
 )
 
@@ -141,3 +142,28 @@ class TestRegAddressToInt:
     def test_valid_address_returns_int(self, address: str, expected: int) -> None:
         """Register address string (0bXX) converts to integer."""
         assert reg_address_to_int(address) == expected
+
+
+class TestIntToRegAddress:
+    """Tests for int_to_reg_address (int -> 4-char register address)."""
+
+    @pytest.mark.parametrize(
+        ("reg_int", "expected"),
+        [
+            (0, "0b00"),
+            (0x51, "0b51"),
+            (0xFF, "0bff"),
+        ],
+    )
+    def test_valid_range_produces_4_char_address(
+        self, reg_int: int, expected: str
+    ) -> None:
+        """Values 0-255 produce correct 4-character addresses."""
+        assert int_to_reg_address("0b", reg_int) == expected
+
+    def test_out_of_range_raises(self) -> None:
+        """Values outside 0-255 raise ValueError."""
+        with pytest.raises(ValueError, match="outside 8-bit address space"):
+            int_to_reg_address("0b", 256)
+        with pytest.raises(ValueError, match="outside 8-bit address space"):
+            int_to_reg_address("0b", -1)
