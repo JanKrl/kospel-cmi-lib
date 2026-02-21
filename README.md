@@ -111,7 +111,7 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[kospel/](src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
 - **[controller/](src/kospel_cmi/controller/README.md)** - YAML registry config and load_registry
-- **[tools/](src/kospel_cmi/tools/README.md)** - Register scanner for reverse-engineering
+- **[tools/](src/kospel_cmi/tools/README.md)** - Register scanner and live scanner for reverse-engineering
 
 ### Project Documentation
 
@@ -126,7 +126,7 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 
 1. Local control - basic device functions can be operated using the library
 2. Robust interface - an interface for 3rd party tools (i.e., Home Assistant integration)
-3. Reverse-engineering toolset - ease integration with other device types
+3. Reverse-engineering toolset - `kospel-scan-registers` and `kospel-scan-live` for exploring registers
 
 ### `v2.0.0` Plug & Play for Kospel ecosystem
 

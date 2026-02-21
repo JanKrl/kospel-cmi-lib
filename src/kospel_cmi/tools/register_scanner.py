@@ -310,7 +310,10 @@ async def _main_async() -> int:
         return 1
 
     if args.yaml_path:
-        backend: RegisterBackend = YamlRegisterBackend(args.yaml_path)
+        yaml_path = Path(args.yaml_path)
+        if not yaml_path.is_absolute():
+            yaml_path = Path.cwd() / yaml_path
+        backend: RegisterBackend = YamlRegisterBackend(str(yaml_path.resolve()))
         should_close = False
     else:
         session = aiohttp.ClientSession()

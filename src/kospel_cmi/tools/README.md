@@ -2,6 +2,56 @@
 
 Tools for exploring and reverse-engineering heater registers.
 
+## Live Scanner
+
+Polls registers periodically and outputs only changes with timestamps. Designed
+for recording sessions when changing settings via the manufacturer UI.
+
+### CLI Usage
+
+```bash
+# HTTP mode (requires heater on network)
+kospel-scan-live --url http://192.168.1.1/api/dev/65 0b00 256
+
+# YAML mode (offline, uses state file)
+kospel-scan-live --yaml /path/to/state.yaml 0b00 256
+
+# Append change events to file
+kospel-scan-live --url http://192.168.1.1/api/dev/65 -o live_session.yaml
+
+# Custom poll interval (default: 2s)
+kospel-scan-live --url http://... --interval 1
+```
+
+**Options:**
+- `--url URL` - HTTP mode: base URL of the heater API
+- `--yaml PATH` - YAML mode: path to state file (relative paths resolved from CWD)
+- `-o FILE` / `--output FILE` - Append change events to file (relative paths from CWD)
+- `--interval SECS` - Poll interval in seconds (default: 2)
+- `--show-empty` - Include empty registers in initial state
+- `START_REGISTER` - Starting address (default: 0b00)
+- `COUNT` - Number of registers (default: 256)
+
+**Output:** Initial state (same table as register scanner), then only changed
+registers with timestamps. Each change shown as two rows (old, new) with
+register header and separator. Press Ctrl+C to stop.
+
+### File Output Format
+
+When using `-o FILE`, change events are appended as YAML blocks:
+
+```yaml
+---
+timestamp: "2025-02-18T12:00:08Z"
+changes:
+  - register: "0b55"
+    old_hex: "d700"
+    new_hex: "2000"
+    old_int: 215
+    new_int: 512
+    ...
+```
+
 ## Register Scanner
 
 Scans a range of registers from the device, applies multiple interpretation parsers
@@ -26,8 +76,8 @@ kospel-scan-registers --url http://192.168.1.1/api/dev/65 --show-empty
 
 **Options:**
 - `--url URL` - HTTP mode: base URL of the heater API
-- `--yaml PATH` - YAML mode: path to state file (for offline development)
-- `-o FILE` / `--output FILE` - Write results to file instead of stdout
+- `--yaml PATH` - YAML mode: path to state file (relative paths resolved from CWD)
+- `-o FILE` / `--output FILE` - Write results to file (relative paths from CWD)
 - `--show-empty` - Include registers with hex 0000 (default: hide them)
 - `START_REGISTER` - Starting address (default: 0b00)
 - `COUNT` - Number of registers (default: 256)
