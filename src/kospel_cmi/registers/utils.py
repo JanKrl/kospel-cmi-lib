@@ -97,3 +97,27 @@ def reg_address_to_int(address: str) -> int:
     Converts a register address string (e.g., '0b51') to integer (i.e. for sorting).
     """
     return int(address[2:], 16)
+
+
+def int_to_reg_address(prefix: str, reg_int: int) -> str:
+    """
+    Converts an integer to a register address string in 4-character format.
+
+    Register addresses use exactly 2 hex digits (0x00-0xFF). Values outside
+    this range raise ValueError since the device uses an 8-bit address space.
+
+    Args:
+        prefix: 2-character prefix (e.g., "0b").
+        reg_int: Register index (must be 0-255).
+
+    Returns:
+        4-character register address (e.g., "0b00", "0bff").
+
+    Raises:
+        ValueError: If reg_int is not in range 0-255.
+    """
+    if not 0 <= reg_int <= 255:
+        raise ValueError(
+            f"Register index {reg_int} outside 8-bit address space (0-255)"
+        )
+    return f"{prefix}{reg_int:02x}"
