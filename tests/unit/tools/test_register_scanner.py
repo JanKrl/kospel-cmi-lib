@@ -182,13 +182,13 @@ class TestSerializeScanResult:
 
     @pytest.mark.asyncio
     async def test_null_for_failed_parsers(self) -> None:
-        """Invalid hex yields null for scaled parsers (via default 0000)."""
-        backend = MockRegisterBackend({"0b00": "0000"})
+        """Invalid hex (e.g. wrong length) yields null for scaled parsers in YAML."""
+        backend = MockRegisterBackend({"0b00": "ab"})  # len != 4 triggers decoder failure
         result = await scan_register_range(backend, "0b00", 1)
-        yaml_str = serialize_scan_result(result, include_empty=True)
+        yaml_str = serialize_scan_result(result)
         parsed = yaml.safe_load(yaml_str)
-        assert parsed["registers"]["0b00"]["scaled_temp"] == 0.0
-        assert parsed["registers"]["0b00"]["scaled_pressure"] == 0.0
+        assert parsed["registers"]["0b00"]["scaled_temp"] is None
+        assert parsed["registers"]["0b00"]["scaled_pressure"] is None
 
 
 class TestWriteScanResult:
