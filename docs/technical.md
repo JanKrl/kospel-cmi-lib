@@ -519,7 +519,6 @@ heater.from_registers(all_registers)
 - **Architecture Diagram**: See [`architecture.md`](architecture.md)
 - **User Guide**: See [`../README.md`](../README.md)
 - **Development Guide**: See [`development.md`](development.md)
-- **Status**: See [`status.md`](status.md)
 
 ### Module Documentation
 
