@@ -21,11 +21,12 @@ from ..kospel.backend import (
     RegisterBackend,
     YamlRegisterBackend,
 )
-from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int
+from ..registers.utils import int_to_reg_address, reg_address_to_int
 from .register_scanner import (
     RegisterInterpretation,
     RegisterScanResult,
     _is_empty_register,
+    format_register_row,
     format_scan_result,
     scan_register_range,
 )
@@ -38,19 +39,7 @@ def _format_reg_row(
     label: str,
 ) -> str:
     """Format a single register row with label (old/new)."""
-    temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
-    press_str = (
-        f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
-    )
-    bits_chars = "".join(
-        "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
-    )
-    bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
-    # Match table column alignment: Register(8)+space=9 before Hex; use 2+label(6)+space=9
-    return (
-        f"  {label:<6} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} "
-        f"{press_str:>6}  {bits_str}"
-    )
+    return format_register_row(reg, f"  {label:<6}")
 
 
 def _diff_scans(

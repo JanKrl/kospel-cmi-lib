@@ -106,6 +106,34 @@ def _is_empty_register(reg: RegisterInterpretation) -> bool:
     return reg.hex == "0000"
 
 
+def format_register_row(reg: RegisterInterpretation, first_col: str) -> str:
+    """
+    Format a single register row with shared display logic.
+
+    Temperature, pressure, and bits (●/·, reverse bit order, 4-bit grouping)
+    are formatted consistently. Caller supplies the first column (e.g. register
+    address or label like "old"/"new").
+
+    Args:
+        reg: Register interpretation to format.
+        first_col: First column content, already padded (e.g. f"{reg.register:<8}"
+            or f"  {label:<6}").
+
+    Returns:
+        Formatted row string.
+    """
+    temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
+    press_str = (
+        f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
+    )
+    # ● = set, · = clear (visually scannable in large tables)
+    bits_chars = "".join(
+        "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
+    )
+    bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
+    return f"{first_col} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} {press_str:>6}  {bits_str}"
+
+
 def format_scan_result(
     result: RegisterScanResult,
     *,
@@ -153,16 +181,7 @@ def format_scan_result(
     lines.append(separator)
 
     for reg in displayed:
-        temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
-        press_str = (
-            f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
-        )
-        # ● = set, · = clear (visually scannable in large tables)
-        bits_chars = "".join(
-            "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
-        )
-        bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
-        row = f"{reg.register:<8} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} {press_str:>6}  {bits_str}"
+        row = format_register_row(reg, f"{reg.register:<8}")
         lines.append(row)
 
     return "\n".join(lines)
