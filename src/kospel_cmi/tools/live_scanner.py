@@ -9,7 +9,7 @@ import argparse
 import asyncio
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -86,7 +86,7 @@ def format_changes(
     if not changes:
         return ""
 
-    ts_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    ts_str = timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     lines: list[str] = []
     lines.append(f"{ts_str} - {len(changes)} change(s)")
     lines.append("")
@@ -120,7 +120,7 @@ def serialize_changes(
     if not changes:
         return ""
 
-    ts_str = timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts_str = timestamp.astimezone().isoformat()
     change_list: list[dict] = []
     for old_reg, new_reg in changes:
         change_list.append({
@@ -174,10 +174,11 @@ async def run_live_scan(
     end_register = int_to_reg_address(prefix, end_int)
 
     print(f"Live Scan: {start_register} - {end_register} (polling every {interval}s)")
-    print(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - "
-        f"Initial state ({len([r for r in result.registers if include_empty or not _is_empty_register(r)])} registers)"
+    initial_count = len(
+        [r for r in result.registers if include_empty or not _is_empty_register(r)]
     )
+    ts_initial = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
+    print(f"{ts_initial} - Initial state ({initial_count} registers)")
     print()
     print(format_scan_result(result, include_empty=include_empty))
 
@@ -188,7 +189,7 @@ async def run_live_scan(
             changes = _diff_scans(prev, result)
 
             if changes:
-                ts = datetime.now(timezone.utc)
+                ts = datetime.now().astimezone()
                 formatted = format_changes(changes, ts)
                 print(formatted)
 
