@@ -8,19 +8,18 @@ parsers to each value, and outputs results in human-readable or YAML format.
 import argparse
 import asyncio
 import logging
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, TypedDict
 
-import aiohttp
 import yaml
 
-from ..kospel.backend import (
-    HttpRegisterBackend,
-    RegisterBackend,
-    YamlRegisterBackend,
+from ..kospel.backend import RegisterBackend
+from .cli_common import (
+    add_backend_arguments,
+    add_scan_arguments,
+    create_backend_from_args,
 )
 from ..registers.decoders import decode_scaled_pressure, decode_scaled_temp
 from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int, reg_to_int
@@ -307,18 +306,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan a range of heater registers for reverse-engineering."
     )
-    parser.add_argument(
-        "--url",
-        type=str,
-        help="HTTP mode: base URL (e.g. http://192.168.1.1/api/dev/65)",
-    )
-    parser.add_argument(
-        "--yaml",
-        dest="yaml_path",
-        type=str,
-        metavar="PATH",
-        help="YAML mode: path to state file (for offline/dev)",
-    )
+    add_backend_arguments(parser)
     parser.add_argument(
         "-o",
         "--output",
@@ -331,19 +319,7 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include registers with hex 0000 (default: hide them)",
     )
-    parser.add_argument(
-        "start_register",
-        nargs="?",
-        default="0b00",
-        help="Starting register address (default: 0b00)",
-    )
-    parser.add_argument(
-        "count",
-        nargs="?",
-        type=int,
-        default=256,
-        help="Number of registers to read (default: 256)",
-    )
+    add_scan_arguments(parser)
     return parser.parse_args()
 
 
@@ -351,42 +327,24 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if args.url and args.yaml_path:
-        print("Error: Use either --url or --yaml, not both.", file=sys.stderr)
+    backend = create_backend_from_args(args)
+    if backend is None:
         return 1
-    if not args.url and not args.yaml_path:
-        print(
-            "Error: Specify --url for HTTP mode or --yaml for YAML (offline) mode.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if args.yaml_path:
-        yaml_path = Path(args.yaml_path)
-        if not yaml_path.is_absolute():
-            yaml_path = Path.cwd() / yaml_path
-        backend: RegisterBackend = YamlRegisterBackend(str(yaml_path.resolve()))
-        should_close = False
-    else:
-        session = aiohttp.ClientSession()
-        backend = HttpRegisterBackend(session, args.url)
-        should_close = True
 
     try:
-        result = await scan_register_range(
+        scan_result = await scan_register_range(
             backend, args.start_register, args.count
         )
 
         include_empty = args.show_empty
         if args.output:
             out_path = Path(args.output)
-            write_scan_result(out_path, result, include_empty=include_empty)
+            write_scan_result(out_path, scan_result, include_empty=include_empty)
             print(f"Wrote scan to {out_path}")
         else:
-            print(format_scan_result(result, include_empty=include_empty))
+            print(format_scan_result(scan_result, include_empty=include_empty))
     finally:
-        if should_close and hasattr(backend, "aclose"):
-            await backend.aclose()
+        await backend.aclose()
 
     return 0
 

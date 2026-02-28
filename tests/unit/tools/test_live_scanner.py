@@ -15,23 +15,7 @@ from kospel_cmi.tools.live_scanner import (
     serialize_changes,
 )
 from kospel_cmi.tools.register_scanner import scan_register_range
-
-
-class MockRegisterBackend:
-    """Mock backend that returns fixed register data."""
-
-    def __init__(self, registers: dict[str, str] | None = None) -> None:
-        self.registers = registers or {}
-
-    async def read_registers(self, start_register: str, count: int) -> dict[str, str]:
-        result: dict[str, str] = {}
-        start_int = reg_address_to_int(start_register)
-        prefix = start_register[:2]
-        for i in range(count):
-            reg_int = start_int + i
-            reg_str = int_to_reg_address(prefix, reg_int)
-            result[reg_str] = self.registers.get(reg_str, "0000")
-        return result
+from tests.unit.tools.fixtures import MockRegisterBackend
 
 
 class ChangingMockBackend:

@@ -5,30 +5,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from kospel_cmi.registers.utils import int_to_reg_address, reg_address_to_int
 from kospel_cmi.tools.register_scanner import (
     format_scan_result,
     scan_register_range,
     serialize_scan_result,
     write_scan_result,
 )
-
-
-class MockRegisterBackend:
-    """Mock backend that returns fixed register data."""
-
-    def __init__(self, registers: dict[str, str] | None = None) -> None:
-        self.registers = registers or {}
-
-    async def read_registers(self, start_register: str, count: int) -> dict[str, str]:
-        result: dict[str, str] = {}
-        start_int = reg_address_to_int(start_register)
-        prefix = start_register[:2]
-        for i in range(count):
-            reg_int = start_int + i
-            reg_str = int_to_reg_address(prefix, reg_int)
-            result[reg_str] = self.registers.get(reg_str, "0000")
-        return result
+from tests.unit.tools.fixtures import MockRegisterBackend
 
 
 class TestScanRegisterRange:

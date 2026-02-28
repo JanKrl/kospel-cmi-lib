@@ -8,19 +8,18 @@ Designed for recording sessions when changing settings via the manufacturer UI.
 import argparse
 import asyncio
 import logging
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import aiofiles
-import aiohttp
 import yaml
 
-from ..kospel.backend import (
-    HttpRegisterBackend,
-    RegisterBackend,
-    YamlRegisterBackend,
+from ..kospel.backend import RegisterBackend
+from .cli_common import (
+    add_backend_arguments,
+    add_scan_arguments,
+    create_backend_from_args,
 )
 from ..registers.utils import int_to_reg_address, reg_address_to_int
 from .register_scanner import (
@@ -210,18 +209,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Live scan: poll registers and show only changes."
     )
-    parser.add_argument(
-        "--url",
-        type=str,
-        help="HTTP mode: base URL (e.g. http://192.168.1.1/api/dev/65)",
-    )
-    parser.add_argument(
-        "--yaml",
-        dest="yaml_path",
-        type=str,
-        metavar="PATH",
-        help="YAML mode: path to state file (for offline/dev)",
-    )
+    add_backend_arguments(parser)
     parser.add_argument(
         "-o",
         "--output",
@@ -241,19 +229,7 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include empty registers in initial state",
     )
-    parser.add_argument(
-        "start_register",
-        nargs="?",
-        default="0b00",
-        help="Starting register address (default: 0b00)",
-    )
-    parser.add_argument(
-        "count",
-        nargs="?",
-        type=int,
-        default=256,
-        help="Number of registers to read (default: 256)",
-    )
+    add_scan_arguments(parser)
     return parser.parse_args()
 
 
@@ -261,26 +237,9 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if args.url and args.yaml_path:
-        print("Error: Use either --url or --yaml, not both.", file=sys.stderr)
+    backend = create_backend_from_args(args)
+    if backend is None:
         return 1
-    if not args.url and not args.yaml_path:
-        print(
-            "Error: Specify --url for HTTP mode or --yaml for YAML (offline) mode.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if args.yaml_path:
-        yaml_path = Path(args.yaml_path)
-        if not yaml_path.is_absolute():
-            yaml_path = Path.cwd() / yaml_path
-        backend: RegisterBackend = YamlRegisterBackend(str(yaml_path.resolve()))
-        should_close = False
-    else:
-        session = aiohttp.ClientSession()
-        backend = HttpRegisterBackend(session, args.url)
-        should_close = True
 
     output_path = Path(args.output) if args.output else None
 
@@ -296,8 +255,7 @@ async def _main_async() -> int:
     except asyncio.CancelledError:
         pass
     finally:
-        if should_close and hasattr(backend, "aclose"):
-            await backend.aclose()
+        await backend.aclose()
 
     return 0
 
