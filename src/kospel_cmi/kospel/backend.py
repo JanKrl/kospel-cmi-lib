@@ -125,6 +125,10 @@ class YamlRegisterBackend:
             self._state_file, register, hex_value
         )
 
+    async def aclose(self) -> None:
+        """No-op: YAML backend uses open/close per operation, no persistent resources."""
+        pass
+
 
 async def write_flag_bit(
     backend: RegisterBackend,

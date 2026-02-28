@@ -222,6 +222,10 @@ async def read_register(
 - Use `async with` for session management
 - Timeout all network operations (default 5s)
 - Log errors with context
+- **File I/O in async code**: Never use synchronous `open()` or `Path.read_text()`/`write_text()` inside async functions. Use `aiofiles` instead:
+  - `async with aiofiles.open(path, "r", encoding="utf-8") as f: content = await f.read()`
+  - `async with aiofiles.open(path, "a", encoding="utf-8") as f: await f.write(data)`
+  - Reference implementation: `kospel/simulator.py` (_load_registers, _save_registers)
 
 ### Type System
 

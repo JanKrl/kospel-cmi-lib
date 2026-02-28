@@ -8,18 +8,18 @@ Designed for recording sessions when changing settings via the manufacturer UI.
 import argparse
 import asyncio
 import logging
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import aiohttp
+import aiofiles
 import yaml
 
-from ..kospel.backend import (
-    HttpRegisterBackend,
-    RegisterBackend,
-    YamlRegisterBackend,
+from ..kospel.backend import RegisterBackend
+from .cli_common import (
+    add_backend_arguments,
+    add_scan_arguments,
+    backend_context,
 )
 from ..registers.utils import int_to_reg_address, reg_address_to_int
 from .register_scanner import (
@@ -123,17 +123,19 @@ def serialize_changes(
     ts_str = timestamp.astimezone().isoformat()
     change_list: list[dict] = []
     for old_reg, new_reg in changes:
-        change_list.append({
-            "register": old_reg.register,
-            "old_hex": old_reg.hex,
-            "new_hex": new_reg.hex,
-            "old_int": old_reg.raw_int,
-            "new_int": new_reg.raw_int,
-            "old_scaled_temp": old_reg.scaled_temp,
-            "new_scaled_temp": new_reg.scaled_temp,
-            "old_scaled_pressure": old_reg.scaled_pressure,
-            "new_scaled_pressure": new_reg.scaled_pressure,
-        })
+        change_list.append(
+            {
+                "register": old_reg.register,
+                "old_hex": old_reg.hex,
+                "new_hex": new_reg.hex,
+                "old_int": old_reg.raw_int,
+                "new_int": new_reg.raw_int,
+                "old_scaled_temp": old_reg.scaled_temp,
+                "new_scaled_temp": new_reg.scaled_temp,
+                "old_scaled_pressure": old_reg.scaled_pressure,
+                "new_scaled_pressure": new_reg.scaled_pressure,
+            }
+        )
 
     data = {"timestamp": ts_str, "changes": change_list}
     block = yaml.safe_dump(
@@ -195,8 +197,8 @@ async def run_live_scan(
 
                 if output_path:
                     yaml_block = serialize_changes(changes, ts)
-                    with open(output_path, "a", encoding="utf-8") as f:
-                        f.write(yaml_block)
+                    async with aiofiles.open(output_path, "a", encoding="utf-8") as f:
+                        await f.write(yaml_block)
 
             for reg in result.registers:
                 prev[reg.register] = reg
@@ -209,18 +211,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Live scan: poll registers and show only changes."
     )
-    parser.add_argument(
-        "--url",
-        type=str,
-        help="HTTP mode: base URL (e.g. http://192.168.1.1/api/dev/65)",
-    )
-    parser.add_argument(
-        "--yaml",
-        dest="yaml_path",
-        type=str,
-        metavar="PATH",
-        help="YAML mode: path to state file (for offline/dev)",
-    )
+    add_backend_arguments(parser)
     parser.add_argument(
         "-o",
         "--output",
@@ -240,19 +231,7 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include empty registers in initial state",
     )
-    parser.add_argument(
-        "start_register",
-        nargs="?",
-        default="0b00",
-        help="Starting register address (default: 0b00)",
-    )
-    parser.add_argument(
-        "count",
-        nargs="?",
-        type=int,
-        default=256,
-        help="Number of registers to read (default: 256)",
-    )
+    add_scan_arguments(parser)
     return parser.parse_args()
 
 
@@ -260,43 +239,24 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if args.url and args.yaml_path:
-        print("Error: Use either --url or --yaml, not both.", file=sys.stderr)
+    cm = backend_context(args)
+    if not cm:
         return 1
-    if not args.url and not args.yaml_path:
-        print(
-            "Error: Specify --url for HTTP mode or --yaml for YAML (offline) mode.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if args.yaml_path:
-        yaml_path = Path(args.yaml_path)
-        if not yaml_path.is_absolute():
-            yaml_path = Path.cwd() / yaml_path
-        backend: RegisterBackend = YamlRegisterBackend(str(yaml_path.resolve()))
-        should_close = False
-    else:
-        session = aiohttp.ClientSession()
-        backend = HttpRegisterBackend(session, args.url)
-        should_close = True
 
     output_path = Path(args.output) if args.output else None
 
     try:
-        await run_live_scan(
-            backend=backend,
-            start_register=args.start_register,
-            count=args.count,
-            interval=args.interval,
-            output_path=output_path,
-            include_empty=args.show_empty,
-        )
+        async with cm as backend:
+            await run_live_scan(
+                backend=backend,
+                start_register=args.start_register,
+                count=args.count,
+                interval=args.interval,
+                output_path=output_path,
+                include_empty=args.show_empty,
+            )
     except asyncio.CancelledError:
-        pass
-    finally:
-        if should_close and hasattr(backend, "aclose"):
-            await backend.aclose()
+        return 130
 
     return 0
 

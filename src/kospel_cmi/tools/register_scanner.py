@@ -8,26 +8,64 @@ parsers to each value, and outputs results in human-readable or YAML format.
 import argparse
 import asyncio
 import logging
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 
-import aiohttp
+import aiofiles
 import yaml
 
-from ..kospel.backend import (
-    HttpRegisterBackend,
-    RegisterBackend,
-    YamlRegisterBackend,
+from ..kospel.backend import RegisterBackend
+from .cli_common import (
+    add_backend_arguments,
+    add_scan_arguments,
+    backend_context,
 )
 from ..registers.decoders import decode_scaled_pressure, decode_scaled_temp
-from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int, reg_to_int
+from ..registers.utils import (
+    get_bit,
+    int_to_reg_address,
+    reg_address_to_int,
+    reg_to_int,
+)
 
 logger = logging.getLogger(__name__)
 
 FORMAT_VERSION = "1"
+
+
+class RegisterEntryDict(TypedDict):
+    """Single register entry in scan result dict output."""
+
+    hex: str
+    raw_int: int
+    scaled_temp: Optional[float]
+    scaled_pressure: Optional[float]
+    bits: dict[int, bool]
+
+
+class _ScanMetaRequired(TypedDict):
+    """Required keys for scan metadata."""
+
+    start_register: str
+    count: int
+    timestamp: str
+
+
+class ScanMetaDict(_ScanMetaRequired, total=False):
+    """Scan metadata with optional hide_empty and registers_shown."""
+
+    hide_empty: bool
+    registers_shown: int
+
+
+class ScanResultDict(TypedDict):
+    """Top-level dict structure returned by _result_to_dict."""
+
+    format_version: str
+    scan: ScanMetaDict
+    registers: dict[str, RegisterEntryDict]
 
 
 @dataclass
@@ -123,9 +161,7 @@ def format_register_row(reg: RegisterInterpretation, first_col: str) -> str:
         Formatted row string.
     """
     temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
-    press_str = (
-        f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
-    )
+    press_str = f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
     # ● = set, · = clear (visually scannable in large tables)
     bits_chars = "".join(
         "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
@@ -176,7 +212,19 @@ def format_scan_result(
         return "\n".join(lines)
 
     header = f"{'Register':<8} {'Hex':<6} {'Int':>7} {'°C':>6} {'bar':>6}  Bits"
-    separator = "-" * 8 + " " + "-" * 6 + " " + "-" * 7 + " " + "-" * 6 + " " + "-" * 6 + "  " + "-" * 19
+    separator = (
+        "-" * 8
+        + " "
+        + "-" * 6
+        + " "
+        + "-" * 7
+        + " "
+        + "-" * 6
+        + " "
+        + "-" * 6
+        + "  "
+        + "-" * 19
+    )
     lines.append(header)
     lines.append(separator)
 
@@ -191,16 +239,16 @@ def _result_to_dict(
     result: RegisterScanResult,
     *,
     include_empty: bool = False,
-) -> dict:
+) -> ScanResultDict:
     """Convert RegisterScanResult to a dict suitable for YAML serialization."""
     if include_empty:
         displayed = result.registers
     else:
         displayed = [r for r in result.registers if not _is_empty_register(r)]
 
-    registers_dict: dict[str, dict] = {}
+    registers_dict: dict[str, RegisterEntryDict] = {}
     for reg in displayed:
-        reg_data: dict = {
+        reg_data: RegisterEntryDict = {
             "hex": reg.hex,
             "raw_int": reg.raw_int,
             "scaled_temp": reg.scaled_temp,
@@ -209,7 +257,7 @@ def _result_to_dict(
         }
         registers_dict[reg.register] = reg_data
 
-    scan_meta: dict = {
+    scan_meta: ScanMetaDict = {
         "start_register": result.start_register,
         "count": result.count,
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -251,7 +299,7 @@ def serialize_scan_result(
     )
 
 
-def write_scan_result(
+async def write_scan_result(
     path: Path,
     result: RegisterScanResult,
     *,
@@ -266,7 +314,8 @@ def write_scan_result(
         include_empty: If False (default), omit registers with hex 0000.
     """
     content = serialize_scan_result(result, include_empty=include_empty)
-    path.write_text(content, encoding="utf-8")
+    async with aiofiles.open(path, "w", encoding="utf-8") as f:
+        await f.write(content)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -274,18 +323,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan a range of heater registers for reverse-engineering."
     )
-    parser.add_argument(
-        "--url",
-        type=str,
-        help="HTTP mode: base URL (e.g. http://192.168.1.1/api/dev/65)",
-    )
-    parser.add_argument(
-        "--yaml",
-        dest="yaml_path",
-        type=str,
-        metavar="PATH",
-        help="YAML mode: path to state file (for offline/dev)",
-    )
+    add_backend_arguments(parser)
     parser.add_argument(
         "-o",
         "--output",
@@ -298,19 +336,7 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include registers with hex 0000 (default: hide them)",
     )
-    parser.add_argument(
-        "start_register",
-        nargs="?",
-        default="0b00",
-        help="Starting register address (default: 0b00)",
-    )
-    parser.add_argument(
-        "count",
-        nargs="?",
-        type=int,
-        default=256,
-        help="Number of registers to read (default: 256)",
-    )
+    add_scan_arguments(parser)
     return parser.parse_args()
 
 
@@ -318,42 +344,22 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if args.url and args.yaml_path:
-        print("Error: Use either --url or --yaml, not both.", file=sys.stderr)
-        return 1
-    if not args.url and not args.yaml_path:
-        print(
-            "Error: Specify --url for HTTP mode or --yaml for YAML (offline) mode.",
-            file=sys.stderr,
-        )
+    cm = backend_context(args)
+    if not cm:
         return 1
 
-    if args.yaml_path:
-        yaml_path = Path(args.yaml_path)
-        if not yaml_path.is_absolute():
-            yaml_path = Path.cwd() / yaml_path
-        backend: RegisterBackend = YamlRegisterBackend(str(yaml_path.resolve()))
-        should_close = False
-    else:
-        session = aiohttp.ClientSession()
-        backend = HttpRegisterBackend(session, args.url)
-        should_close = True
-
-    try:
-        result = await scan_register_range(
+    async with cm as backend:
+        scan_result = await scan_register_range(
             backend, args.start_register, args.count
         )
 
         include_empty = args.show_empty
         if args.output:
             out_path = Path(args.output)
-            write_scan_result(out_path, result, include_empty=include_empty)
+            await write_scan_result(out_path, scan_result, include_empty=include_empty)
             print(f"Wrote scan to {out_path}")
         else:
-            print(format_scan_result(result, include_empty=include_empty))
-    finally:
-        if should_close and hasattr(backend, "aclose"):
-            await backend.aclose()
+            print(format_scan_result(scan_result, include_empty=include_empty))
 
     return 0
 

@@ -2,33 +2,17 @@
 
 from pathlib import Path
 
+import aiofiles
 import pytest
 import yaml
 
-from kospel_cmi.registers.utils import int_to_reg_address, reg_address_to_int
 from kospel_cmi.tools.register_scanner import (
     format_scan_result,
     scan_register_range,
     serialize_scan_result,
     write_scan_result,
 )
-
-
-class MockRegisterBackend:
-    """Mock backend that returns fixed register data."""
-
-    def __init__(self, registers: dict[str, str] | None = None) -> None:
-        self.registers = registers or {}
-
-    async def read_registers(self, start_register: str, count: int) -> dict[str, str]:
-        result: dict[str, str] = {}
-        start_int = reg_address_to_int(start_register)
-        prefix = start_register[:2]
-        for i in range(count):
-            reg_int = start_int + i
-            reg_str = int_to_reg_address(prefix, reg_int)
-            result[reg_str] = self.registers.get(reg_str, "0000")
-        return result
+from tests.unit.tools.fixtures import MockRegisterBackend
 
 
 class TestScanRegisterRange:
@@ -183,7 +167,9 @@ class TestSerializeScanResult:
     @pytest.mark.asyncio
     async def test_null_for_failed_parsers(self) -> None:
         """Invalid hex (e.g. wrong length) yields null for scaled parsers in YAML."""
-        backend = MockRegisterBackend({"0b00": "ab"})  # len != 4 triggers decoder failure
+        backend = MockRegisterBackend(
+            {"0b00": "ab"}
+        )  # len != 4 triggers decoder failure
         result = await scan_register_range(backend, "0b00", 1)
         yaml_str = serialize_scan_result(result)
         parsed = yaml.safe_load(yaml_str)
@@ -200,26 +186,33 @@ class TestWriteScanResult:
         backend = MockRegisterBackend({"0b55": "d700"})
         result = await scan_register_range(backend, "0b55", 1)
         out_file = tmp_path / "scan.yaml"
-        write_scan_result(out_file, result)
+        await write_scan_result(out_file, result)
         assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
+        async with aiofiles.open(out_file, "r", encoding="utf-8") as f:
+            content = await f.read()
         parsed = yaml.safe_load(content)
         assert parsed["registers"]["0b55"]["hex"] == "d700"
+
+
+@pytest.fixture
+def yaml_state_with_registers(tmp_path: Path) -> Path:
+    """Create YAML state file with register data for YamlRegisterBackend tests."""
+    state_file = tmp_path / "state.yaml"
+    state_file.write_text('"0b31": "e100"\n"0b4e": "f401"\n')
+    return state_file
 
 
 class TestRegisterScannerWithYamlBackend:
     """Integration-style tests with YamlRegisterBackend (no network)."""
 
     @pytest.mark.asyncio
-    async def test_scan_with_yaml_backend(self, tmp_path: Path) -> None:
+    async def test_scan_with_yaml_backend(
+        self, yaml_state_with_registers: Path
+    ) -> None:
         """scan_register_range works with YamlRegisterBackend."""
         from kospel_cmi.kospel.backend import YamlRegisterBackend
 
-        state_file = str(tmp_path / "state.yaml")
-        state_file_path = Path(state_file)
-        state_file_path.write_text('"0b31": "e100"\n"0b4e": "f401"\n')
-
-        backend = YamlRegisterBackend(state_file=state_file)
+        backend = YamlRegisterBackend(state_file=str(yaml_state_with_registers))
         result = await scan_register_range(backend, "0b00", 256)
         assert result.count == 256
         reg_31 = next(r for r in result.registers if r.register == "0b31")
