@@ -19,10 +19,15 @@ from ..kospel.backend import RegisterBackend
 from .cli_common import (
     add_backend_arguments,
     add_scan_arguments,
-    create_backend_from_args,
+    backend_context,
 )
 from ..registers.decoders import decode_scaled_pressure, decode_scaled_temp
-from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int, reg_to_int
+from ..registers.utils import (
+    get_bit,
+    int_to_reg_address,
+    reg_address_to_int,
+    reg_to_int,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,12 +160,10 @@ def format_register_row(reg: RegisterInterpretation, first_col: str) -> str:
         Formatted row string.
     """
     temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
-    press_str = (
-        f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
-    )
+    press_str = f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
     # ● = set, · = clear (visually scannable in large tables)
     bits_chars = "".join(
-        "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
+        "\u25cf" if reg.bits[i] else "\u00b7" for i in range(15, -1, -1)
     )
     bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
     return f"{first_col} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} {press_str:>6}  {bits_str}"
@@ -208,7 +211,19 @@ def format_scan_result(
         return "\n".join(lines)
 
     header = f"{'Register':<8} {'Hex':<6} {'Int':>7} {'°C':>6} {'bar':>6}  Bits"
-    separator = "-" * 8 + " " + "-" * 6 + " " + "-" * 7 + " " + "-" * 6 + " " + "-" * 6 + "  " + "-" * 19
+    separator = (
+        "-" * 8
+        + " "
+        + "-" * 6
+        + " "
+        + "-" * 7
+        + " "
+        + "-" * 6
+        + " "
+        + "-" * 6
+        + "  "
+        + "-" * 19
+    )
     lines.append(header)
     lines.append(separator)
 
@@ -327,11 +342,10 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    backend = create_backend_from_args(args)
-    if backend is None:
+    if cm := backend_context(args):
         return 1
 
-    try:
+    async with cm as backend:
         scan_result = await scan_register_range(
             backend, args.start_register, args.count
         )
@@ -343,8 +357,6 @@ async def _main_async() -> int:
             print(f"Wrote scan to {out_path}")
         else:
             print(format_scan_result(scan_result, include_empty=include_empty))
-    finally:
-        await backend.aclose()
 
     return 0
 

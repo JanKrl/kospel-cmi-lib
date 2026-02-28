@@ -19,7 +19,7 @@ from ..kospel.backend import RegisterBackend
 from .cli_common import (
     add_backend_arguments,
     add_scan_arguments,
-    create_backend_from_args,
+    backend_context,
 )
 from ..registers.utils import int_to_reg_address, reg_address_to_int
 from .register_scanner import (
@@ -123,17 +123,19 @@ def serialize_changes(
     ts_str = timestamp.astimezone().isoformat()
     change_list: list[dict] = []
     for old_reg, new_reg in changes:
-        change_list.append({
-            "register": old_reg.register,
-            "old_hex": old_reg.hex,
-            "new_hex": new_reg.hex,
-            "old_int": old_reg.raw_int,
-            "new_int": new_reg.raw_int,
-            "old_scaled_temp": old_reg.scaled_temp,
-            "new_scaled_temp": new_reg.scaled_temp,
-            "old_scaled_pressure": old_reg.scaled_pressure,
-            "new_scaled_pressure": new_reg.scaled_pressure,
-        })
+        change_list.append(
+            {
+                "register": old_reg.register,
+                "old_hex": old_reg.hex,
+                "new_hex": new_reg.hex,
+                "old_int": old_reg.raw_int,
+                "new_int": new_reg.raw_int,
+                "old_scaled_temp": old_reg.scaled_temp,
+                "new_scaled_temp": new_reg.scaled_temp,
+                "old_scaled_pressure": old_reg.scaled_pressure,
+                "new_scaled_pressure": new_reg.scaled_pressure,
+            }
+        )
 
     data = {"timestamp": ts_str, "changes": change_list}
     block = yaml.safe_dump(
@@ -237,25 +239,23 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    backend = create_backend_from_args(args)
-    if backend is None:
+    if cm := backend_context(args):
         return 1
 
     output_path = Path(args.output) if args.output else None
 
     try:
-        await run_live_scan(
-            backend=backend,
-            start_register=args.start_register,
-            count=args.count,
-            interval=args.interval,
-            output_path=output_path,
-            include_empty=args.show_empty,
-        )
+        async with cm as backend:
+            await run_live_scan(
+                backend=backend,
+                start_register=args.start_register,
+                count=args.count,
+                interval=args.interval,
+                output_path=output_path,
+                include_empty=args.show_empty,
+            )
     except asyncio.CancelledError:
         pass
-    finally:
-        await backend.aclose()
 
     return 0
 

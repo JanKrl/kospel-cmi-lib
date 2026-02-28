@@ -7,7 +7,10 @@ Used by register_scanner and live_scanner to avoid duplication of
 
 import argparse
 import sys
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
+
 import aiohttp
 
 from ..kospel.backend import (
@@ -60,34 +63,52 @@ def add_scan_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def create_backend_from_args(
-    args: argparse.Namespace,
-) -> RegisterBackend | None:
-    """
-    Validate url/yaml args and create backend.
-
-    Args:
-        args: Parsed arguments with url and yaml_path attributes.
-
-    Returns:
-        Backend on success. Caller must call backend.aclose() when done.
-        None on validation failure (error printed to stderr).
-    """
+def _validate_backend_args(args: argparse.Namespace) -> bool:
+    """Validate url/yaml args. Print error to stderr and return False on failure."""
     if args.url and args.yaml_path:
         print("Error: Use either --url or --yaml, not both.", file=sys.stderr)
-        return None
+        return False
     if not args.url and not args.yaml_path:
         print(
             "Error: Specify --url for HTTP mode or --yaml for YAML (offline) mode.",
             file=sys.stderr,
         )
+        return False
+    return True
+
+
+@asynccontextmanager
+async def _http_backend_context(args: argparse.Namespace) -> AsyncIterator[RegisterBackend]:
+    """Async context manager for HTTP backend. Uses async with for ClientSession."""
+    async with aiohttp.ClientSession() as session:
+        yield HttpRegisterBackend(session, args.url)
+
+
+@asynccontextmanager
+async def _yaml_backend_context(args: argparse.Namespace) -> AsyncIterator[RegisterBackend]:
+    """Async context manager for YAML backend. No session to manage."""
+    yaml_path = Path(args.yaml_path)
+    if not yaml_path.is_absolute():
+        yaml_path = Path.cwd() / yaml_path
+    yield YamlRegisterBackend(str(yaml_path.resolve()))
+
+
+def backend_context(
+    args: argparse.Namespace,
+) -> AbstractAsyncContextManager[RegisterBackend] | None:
+    """
+    Validate url/yaml args and return async context manager yielding backend.
+
+    Args:
+        args: Parsed arguments with url and yaml_path attributes.
+
+    Returns:
+        Async context manager on success. Use: async with backend_context(args) as backend.
+        None on validation failure (error printed to stderr).
+    """
+    if not _validate_backend_args(args):
         return None
 
     if args.yaml_path:
-        yaml_path = Path(args.yaml_path)
-        if not yaml_path.is_absolute():
-            yaml_path = Path.cwd() / yaml_path
-        return YamlRegisterBackend(str(yaml_path.resolve()))
-
-    session = aiohttp.ClientSession()
-    return HttpRegisterBackend(session, args.url)
+        return _yaml_backend_context(args)
+    return _http_backend_context(args)
