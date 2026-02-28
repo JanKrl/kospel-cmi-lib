@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 
 import aiohttp
 import yaml
@@ -28,6 +28,39 @@ from ..registers.utils import get_bit, int_to_reg_address, reg_address_to_int, r
 logger = logging.getLogger(__name__)
 
 FORMAT_VERSION = "1"
+
+
+class RegisterEntryDict(TypedDict):
+    """Single register entry in scan result dict output."""
+
+    hex: str
+    raw_int: int
+    scaled_temp: Optional[float]
+    scaled_pressure: Optional[float]
+    bits: dict[int, bool]
+
+
+class _ScanMetaRequired(TypedDict):
+    """Required keys for scan metadata."""
+
+    start_register: str
+    count: int
+    timestamp: str
+
+
+class ScanMetaDict(_ScanMetaRequired, total=False):
+    """Scan metadata with optional hide_empty and registers_shown."""
+
+    hide_empty: bool
+    registers_shown: int
+
+
+class ScanResultDict(TypedDict):
+    """Top-level dict structure returned by _result_to_dict."""
+
+    format_version: str
+    scan: ScanMetaDict
+    registers: dict[str, RegisterEntryDict]
 
 
 @dataclass
@@ -191,16 +224,16 @@ def _result_to_dict(
     result: RegisterScanResult,
     *,
     include_empty: bool = False,
-) -> dict:
+) -> ScanResultDict:
     """Convert RegisterScanResult to a dict suitable for YAML serialization."""
     if include_empty:
         displayed = result.registers
     else:
         displayed = [r for r in result.registers if not _is_empty_register(r)]
 
-    registers_dict: dict[str, dict] = {}
+    registers_dict: dict[str, RegisterEntryDict] = {}
     for reg in displayed:
-        reg_data: dict = {
+        reg_data: RegisterEntryDict = {
             "hex": reg.hex,
             "raw_int": reg.raw_int,
             "scaled_temp": reg.scaled_temp,
@@ -209,7 +242,7 @@ def _result_to_dict(
         }
         registers_dict[reg.register] = reg_data
 
-    scan_meta: dict = {
+    scan_meta: ScanMetaDict = {
         "start_register": result.start_register,
         "count": result.count,
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
