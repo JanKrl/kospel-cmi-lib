@@ -8,6 +8,7 @@ parsers to each value, and outputs results in human-readable or YAML format.
 import argparse
 import asyncio
 import logging
+import aiofiles
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -163,7 +164,7 @@ def format_register_row(reg: RegisterInterpretation, first_col: str) -> str:
     press_str = f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
     # ● = set, · = clear (visually scannable in large tables)
     bits_chars = "".join(
-        "\u25cf" if reg.bits[i] else "\u00b7" for i in range(15, -1, -1)
+        "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
     )
     bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
     return f"{first_col} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} {press_str:>6}  {bits_str}"
@@ -298,7 +299,7 @@ def serialize_scan_result(
     )
 
 
-def write_scan_result(
+async def write_scan_result(
     path: Path,
     result: RegisterScanResult,
     *,
@@ -313,7 +314,8 @@ def write_scan_result(
         include_empty: If False (default), omit registers with hex 0000.
     """
     content = serialize_scan_result(result, include_empty=include_empty)
-    path.write_text(content, encoding="utf-8")
+    async with aiofiles.open(path, "w", encoding="utf-8") as f:
+        await f.write(content)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -342,7 +344,8 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if cm := backend_context(args):
+    cm = backend_context(args)
+    if not cm:
         return 1
 
     async with cm as backend:
@@ -353,7 +356,7 @@ async def _main_async() -> int:
         include_empty = args.show_empty
         if args.output:
             out_path = Path(args.output)
-            write_scan_result(out_path, scan_result, include_empty=include_empty)
+            await write_scan_result(out_path, scan_result, include_empty=include_empty)
             print(f"Wrote scan to {out_path}")
         else:
             print(format_scan_result(scan_result, include_empty=include_empty))

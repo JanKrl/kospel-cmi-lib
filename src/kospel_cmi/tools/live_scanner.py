@@ -239,7 +239,8 @@ async def _main_async() -> int:
     """Async main logic. Returns exit code."""
     args = _parse_args()
 
-    if cm := backend_context(args):
+    cm = backend_context(args)
+    if not cm:
         return 1
 
     output_path = Path(args.output) if args.output else None

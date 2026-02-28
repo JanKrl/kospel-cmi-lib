@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import aiofiles
 import pytest
 import yaml
 
@@ -166,7 +167,9 @@ class TestSerializeScanResult:
     @pytest.mark.asyncio
     async def test_null_for_failed_parsers(self) -> None:
         """Invalid hex (e.g. wrong length) yields null for scaled parsers in YAML."""
-        backend = MockRegisterBackend({"0b00": "ab"})  # len != 4 triggers decoder failure
+        backend = MockRegisterBackend(
+            {"0b00": "ab"}
+        )  # len != 4 triggers decoder failure
         result = await scan_register_range(backend, "0b00", 1)
         yaml_str = serialize_scan_result(result)
         parsed = yaml.safe_load(yaml_str)
@@ -183,9 +186,10 @@ class TestWriteScanResult:
         backend = MockRegisterBackend({"0b55": "d700"})
         result = await scan_register_range(backend, "0b55", 1)
         out_file = tmp_path / "scan.yaml"
-        write_scan_result(out_file, result)
+        await write_scan_result(out_file, result)
         assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
+        async with aiofiles.open(out_file, "r", encoding="utf-8") as f:
+            content = await f.read()
         parsed = yaml.safe_load(content)
         assert parsed["registers"]["0b55"]["hex"] == "d700"
 
