@@ -194,19 +194,25 @@ class TestWriteScanResult:
         assert parsed["registers"]["0b55"]["hex"] == "d700"
 
 
+@pytest.fixture
+def yaml_state_with_registers(tmp_path: Path) -> Path:
+    """Create YAML state file with register data for YamlRegisterBackend tests."""
+    state_file = tmp_path / "state.yaml"
+    state_file.write_text('"0b31": "e100"\n"0b4e": "f401"\n')
+    return state_file
+
+
 class TestRegisterScannerWithYamlBackend:
     """Integration-style tests with YamlRegisterBackend (no network)."""
 
     @pytest.mark.asyncio
-    async def test_scan_with_yaml_backend(self, tmp_path: Path) -> None:
+    async def test_scan_with_yaml_backend(
+        self, yaml_state_with_registers: Path
+    ) -> None:
         """scan_register_range works with YamlRegisterBackend."""
         from kospel_cmi.kospel.backend import YamlRegisterBackend
 
-        state_file = str(tmp_path / "state.yaml")
-        state_file_path = Path(state_file)
-        state_file_path.write_text('"0b31": "e100"\n"0b4e": "f401"\n')
-
-        backend = YamlRegisterBackend(state_file=state_file)
+        backend = YamlRegisterBackend(state_file=str(yaml_state_with_registers))
         result = await scan_register_range(backend, "0b00", 256)
         assert result.count == 256
         reg_31 = next(r for r in result.registers if r.register == "0b31")

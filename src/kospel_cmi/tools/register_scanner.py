@@ -8,12 +8,12 @@ parsers to each value, and outputs results in human-readable or YAML format.
 import argparse
 import asyncio
 import logging
-import aiofiles
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, TypedDict
 
+import aiofiles
 import yaml
 
 from ..kospel.backend import RegisterBackend

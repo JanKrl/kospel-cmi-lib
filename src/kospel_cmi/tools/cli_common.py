@@ -81,6 +81,7 @@ def _validate_backend_args(args: argparse.Namespace) -> bool:
 async def _http_backend_context(args: argparse.Namespace) -> AsyncIterator[RegisterBackend]:
     """Async context manager for HTTP backend. Uses async with for ClientSession."""
     async with aiohttp.ClientSession() as session:
+        assert args.url is not None  # validated by backend_context
         yield HttpRegisterBackend(session, args.url)
 
 
@@ -105,6 +106,10 @@ def backend_context(
     Returns:
         Async context manager on success. Use: async with backend_context(args) as backend.
         None on validation failure (error printed to stderr).
+
+    Note:
+        HTTP backend cleanup is handled by ClientSession context exit.
+        YamlRegisterBackend has a no-op aclose; backend_context does not call it.
     """
     if not _validate_backend_args(args):
         return None

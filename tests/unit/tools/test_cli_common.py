@@ -7,6 +7,14 @@ import pytest
 from kospel_cmi.tools.cli_common import backend_context
 
 
+@pytest.fixture
+def yaml_state_file(tmp_path: Path) -> Path:
+    """Create minimal YAML state file for backend context tests."""
+    state_file = tmp_path / "state.yaml"
+    state_file.write_text('"0b00": "0000"\n', encoding="utf-8")
+    return state_file
+
+
 class TestBackendContextValidation:
     """Tests for backend_context validation and return values."""
 
@@ -40,15 +48,12 @@ class TestBackendContextValidation:
 
     @pytest.mark.asyncio
     async def test_backend_context_returns_context_manager_when_yaml_provided(
-        self, tmp_path: Path
+        self, yaml_state_file: Path
     ) -> None:
         """backend_context returns context manager when --yaml points to valid file."""
-        state_file = tmp_path / "state.yaml"
-        state_file.write_text('"0b00": "0000"\n', encoding="utf-8")
-
         class Args:
             url = None
-            yaml_path = str(state_file)
+            yaml_path = str(yaml_state_file)
 
         cm = backend_context(Args())
         assert cm is not None

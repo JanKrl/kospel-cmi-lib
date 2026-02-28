@@ -4,7 +4,11 @@ from kospel_cmi.registers.utils import int_to_reg_address, reg_address_to_int
 
 
 class MockRegisterBackend:
-    """Mock backend that returns fixed register data."""
+    """Mock backend that returns fixed register data.
+
+    Implements only read_registers; sufficient for scan_register_range tests.
+    Does not implement read_register or write_register.
+    """
 
     def __init__(self, registers: dict[str, str] | None = None) -> None:
         self.registers = registers or {}

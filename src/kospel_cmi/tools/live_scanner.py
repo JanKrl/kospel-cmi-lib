@@ -256,7 +256,7 @@ async def _main_async() -> int:
                 include_empty=args.show_empty,
             )
     except asyncio.CancelledError:
-        pass
+        return 130
 
     return 0
 
