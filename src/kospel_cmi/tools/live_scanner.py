@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import aiofiles
 import aiohttp
 import yaml
 
@@ -195,8 +196,8 @@ async def run_live_scan(
 
                 if output_path:
                     yaml_block = serialize_changes(changes, ts)
-                    with open(output_path, "a", encoding="utf-8") as f:
-                        f.write(yaml_block)
+                    async with aiofiles.open(output_path, "a", encoding="utf-8") as f:
+                        await f.write(yaml_block)
 
             for reg in result.registers:
                 prev[reg.register] = reg
