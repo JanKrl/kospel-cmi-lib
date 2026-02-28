@@ -294,8 +294,6 @@ async def _main_async() -> int:
         )
     except asyncio.CancelledError:
         pass
-    except KeyboardInterrupt:
-        pass
     finally:
         if should_close and hasattr(backend, "aclose"):
             await backend.aclose()
@@ -305,5 +303,8 @@ async def _main_async() -> int:
 
 def main() -> None:
     """CLI entry point."""
-    exit_code = asyncio.run(_main_async())
+    try:
+        exit_code = asyncio.run(_main_async())
+    except KeyboardInterrupt:
+        exit_code = 130  # Standard exit code for SIGINT (128 + 2)
     raise SystemExit(exit_code)
