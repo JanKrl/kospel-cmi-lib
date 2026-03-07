@@ -33,6 +33,7 @@ keywords = ["kospel", "heater", "cmi", "home-assistant", "iot", "async"]
 urls = { Repository = "https://github.com/JanKrl/kospel-cmi-lib" }
 
 [project.scripts]
+kospel-discover = "kospel_cmi.tools.discover:main"
 kospel-scan-registers = "kospel_cmi.tools.register_scanner:main"
 kospel-scan-live = "kospel_cmi.tools.live_scanner:main"
 

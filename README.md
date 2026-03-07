@@ -9,6 +9,7 @@ Python client for the Kospel C.MI electric heater HTTP API.
 - **Registry-driven**: Settings defined declaratively in a central registry; dynamic property access on `HeaterController`
 - **Simulator-capable**: Full simulator for offline development and testing (no hardware required)
 - **Protocol-based**: Decoder/encoder interfaces via Python `Protocol` types
+- **Device discovery**: `probe_device()` and `discover_devices()` to find Kospel devices on the network (no device_id required)
 
 ## Installation
 
@@ -73,6 +74,31 @@ controller = HeaterController(backend=backend, registry=registry)
 await controller.refresh()
 ```
 
+### Device Discovery
+
+**CLI** — scan network and list devices (no config needed):
+
+```bash
+kospel-discover                    # Scans common subnets
+kospel-discover 192.168.101.0/24  # Scan specific subnet
+```
+
+**Python API**:
+
+```python
+import aiohttp
+from kospel_cmi import probe_device, discover_devices
+
+async with aiohttp.ClientSession() as session:
+    info = await probe_device(session, "192.168.101.49")
+    if info:
+        print(f"Found: {info.serial_number}, {info.api_base_url}")
+
+    found = await discover_devices(session, "192.168.101.0/24")
+    for device in found:
+        print(device.host, device.serial_number, device.api_base_url)
+```
+
 ### Setting Heater Mode
 
 ```python
@@ -118,6 +144,7 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[Development Guide](docs/development.md)** - Contributing and extending the library
 - **[Architecture](docs/architecture.md)** - System design, layers, components, and data flow
 - **[Technical Specs](docs/technical.md)** - Implementation details, data formats, protocols, testing, and coding standards
+- **[HA Discovery Feature Request](docs/ha-discovery-feature-request.md)** - How Home Assistant integration can use discovery (probe_device, discover_devices)
 
 
 ## Roadmap
