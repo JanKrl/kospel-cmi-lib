@@ -9,6 +9,7 @@ import asyncio
 import ipaddress
 import logging
 from typing import Optional
+from urllib.parse import urlparse
 
 import aiohttp
 from pydantic import BaseModel
@@ -61,6 +62,13 @@ def _normalize_host(host: str) -> str:
     return host
 
 
+def _extract_host(host: str) -> str:
+    """Extract hostname:port for display from URL or plain host string."""
+    normalized = _normalize_host(host)
+    parsed = urlparse(normalized)
+    return parsed.netloc or parsed.path or host.strip()
+
+
 async def probe_device(
     session: aiohttp.ClientSession,
     host: str,
@@ -84,14 +92,13 @@ async def probe_device(
     dev_url = f"{base_url}/api/dev"
 
     try:
-        async with session.get(dev_url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+        async with session.get(
+            dev_url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
-    except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
         logger.debug("Probe %s failed: %s", dev_url, e)
-        return None
-    except Exception as e:
-        logger.debug("Probe %s unexpected error: %s", dev_url, e)
         return None
 
     status = data.get("status")
@@ -99,7 +106,10 @@ async def probe_device(
     sn = data.get("sn")
 
     if status != "0" or not devs or not sn:
-        logger.debug("Probe %s: invalid response (status=%s, devs=%s, sn=%s)", dev_url, status, devs, sn)
+        logger.debug(
+            "Probe %s: invalid response (status=%s, devs=%s, sn=%s)",
+            dev_url, status, devs, sn,
+        )
         return None
 
     device_ids: list[int] = []
@@ -119,22 +129,13 @@ async def probe_device(
     for did in device_ids:
         info_url = f"{base_url}/api/dev/{did}/info"
         try:
-            async with session.get(info_url, timeout=aiohttp.ClientTimeout(total=timeout)) as info_resp:
+            async with session.get(
+                info_url, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as info_resp:
                 info_resp.raise_for_status()
                 info_data = await info_resp.json()
-        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
             logger.debug("Info %s failed: %s", info_url, e)
-            devices.append(
-                DeviceDetail(
-                    device_id=did,
-                    model_id=0,
-                    model_name="Unknown",
-                    module_id=str(did),
-                )
-            )
-            continue
-        except Exception as e:
-            logger.debug("Info %s unexpected error: %s", info_url, e)
             devices.append(
                 DeviceDetail(
                     device_id=did,
@@ -159,7 +160,7 @@ async def probe_device(
         )
 
     return KospelDeviceInfo(
-        host=host.strip().split("//")[-1].split("/")[0] if "//" in host else host.strip(),
+        host=_extract_host(host),
         device_ids=device_ids,
         serial_number=str(sn),
         api_base_url=api_base_url,

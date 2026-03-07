@@ -3,6 +3,7 @@
 from .kospel.discovery import (
     DeviceDetail,
     KospelDeviceInfo,
+    MODEL_NAMES,
     discover_devices,
     probe_device,
 )
@@ -10,6 +11,7 @@ from .kospel.discovery import (
 __all__ = [
     "DeviceDetail",
     "KospelDeviceInfo",
+    "MODEL_NAMES",
     "discover_devices",
     "probe_device",
 ]

@@ -179,7 +179,6 @@ Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
    - `GET /api/dev` — returns `{"status": "0", "sn": "...", "devs": ["65"]}`
    - `GET /api/dev/<DEVICE_ID>/info` — returns model info (`info.id`: 18=EKD.M3, 19=EKCO.M3, 65=C.MG3, 81=C.MW3)
    - See `kospel.discovery` module: `probe_device()`, `discover_devices()`
-   - **Home Assistant integration**: See [ha-discovery-feature-request.md](ha-discovery-feature-request.md) for how the HA integration can use these functions
 
 **Request/Response Format**:
 - All values are hex strings (4 characters)

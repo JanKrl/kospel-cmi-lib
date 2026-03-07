@@ -183,3 +183,24 @@ class TestDiscoverDevices:
         async with aiohttp.ClientSession() as session:
             result = await discover_devices(session, "not-a-subnet")
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_discover_devices_handles_probe_exceptions(self) -> None:
+        """discover_devices returns successful results when some probes raise."""
+        async with aiohttp.ClientSession() as session:
+            with aioresponses() as m:
+                m.get(
+                    "http://192.168.101.49/api/dev",
+                    payload={"status": "0", "sn": "mi01_ok", "devs": ["65"]},
+                )
+                m.get(
+                    "http://192.168.101.49/api/dev/65/info",
+                    payload={"status": "0", "info": {"id": 19, "moduleID": "65"}},
+                )
+                m.get("http://192.168.101.50/api/dev", exception=ConnectionError("unreachable"))
+                result = await discover_devices(
+                    session, "192.168.101.48/30", timeout=1.0
+                )
+        assert len(result) == 1
+        assert result[0].host == "192.168.101.49"
+        assert result[0].serial_number == "mi01_ok"

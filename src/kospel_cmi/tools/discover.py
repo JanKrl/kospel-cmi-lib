@@ -7,7 +7,6 @@ and API URL ready for use with other tools or integrations.
 
 import argparse
 import asyncio
-import sys
 
 import aiohttp
 
@@ -23,7 +22,11 @@ DEFAULT_SUBNETS = [
 
 
 def _format_devices(devices: list[KospelDeviceInfo]) -> str:
-    """Format discovered devices for console output."""
+    """Format discovered devices for console output.
+
+    When a device's ``devices`` list is empty (e.g. all /info requests failed),
+    the model column shows "?" instead of raising IndexError.
+    """
     if not devices:
         return "No Kospel C.MI devices found."
 
@@ -87,20 +90,16 @@ async def _main_async() -> int:
 
     async with aiohttp.ClientSession() as session:
         for subnet in subnets:
-            try:
-                devices = await discover_devices(
-                    session,
-                    subnet,
-                    timeout=args.timeout,
-                    concurrency_limit=args.concurrency,
-                )
-                for d in devices:
-                    if d.host not in seen_hosts:
-                        seen_hosts.add(d.host)
-                        all_devices.append(d)
-            except ValueError:
-                print(f"Error: Invalid subnet '{subnet}'", file=sys.stderr)
-                return 1
+            devices = await discover_devices(
+                session,
+                subnet,
+                timeout=args.timeout,
+                concurrency_limit=args.concurrency,
+            )
+            for d in devices:
+                if d.host not in seen_hosts:
+                    seen_hosts.add(d.host)
+                    all_devices.append(d)
 
     print(_format_devices(all_devices))
 

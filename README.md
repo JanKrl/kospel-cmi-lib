@@ -144,7 +144,6 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[Development Guide](docs/development.md)** - Contributing and extending the library
 - **[Architecture](docs/architecture.md)** - System design, layers, components, and data flow
 - **[Technical Specs](docs/technical.md)** - Implementation details, data formats, protocols, testing, and coding standards
-- **[HA Discovery Feature Request](docs/ha-discovery-feature-request.md)** - How Home Assistant integration can use discovery (probe_device, discover_devices)
 
 
 ## Roadmap
