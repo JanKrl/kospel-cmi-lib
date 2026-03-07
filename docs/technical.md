@@ -175,6 +175,11 @@ Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
    - Content-Type: `application/json`
    - Response: `{"status": "0"}` (0 = success)
 
+4. **Device Discovery** (no device_id required):
+   - `GET /api/dev` — returns `{"status": "0", "sn": "...", "devs": ["65"]}`
+   - `GET /api/dev/<DEVICE_ID>/info` — returns model info (`info.id`: 18=EKD.M3, 19=EKCO.M3, 65=C.MG3, 81=C.MW3)
+   - See `kospel.discovery` module: `probe_device()`, `discover_devices()`
+
 **Request/Response Format**:
 - All values are hex strings (4 characters)
 - Little-endian byte order

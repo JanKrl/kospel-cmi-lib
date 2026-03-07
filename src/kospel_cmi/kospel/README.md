@@ -44,11 +44,46 @@ Read multiple registers in a single request.
 - Connection errors: Returns `None` or empty dict
 - HTTP errors: Logged and returns `None`/`False`
 
+## Device Discovery
+
+Probe a host to verify it is a Kospel C.MI device and obtain device list (no device_id required):
+
+- **Endpoint**: `GET /api/dev`
+- **Response**: `{"status": "0", "sn": "mi01_...", "devs": ["65"]}`
+
+Optionally fetch per-device info:
+
+- **Endpoint**: `GET /api/dev/<DEVICE_ID>/info`
+- **Response**: `{"status": "0", "info": {"id": 19, "moduleID": "65", ...}}`
+
+**Model ID mapping** (from Kospel web UI):
+- 18: EKD.M3 (kocioł dwufunkcyjny)
+- 19: EKCO.M3 (kocioł elektryczny)
+- 65: C.MG3 (moduł obiegów)
+- 81: C.MW3 (pompa ciepła)
+
+**Usage**:
+
+```python
+import aiohttp
+from kospel_cmi import probe_device, discover_devices
+
+async with aiohttp.ClientSession() as session:
+    info = await probe_device(session, "192.168.101.49")
+    if info:
+        print(info.serial_number, info.device_ids, info.devices[0].model_name)
+
+    found = await discover_devices(session, "192.168.101.0/24")
+    for device in found:
+        print(device.host, device.serial_number)
+```
+
 ## Implementation
 
 The HTTP API is implemented in:
 - `api.py` - Low-level HTTP functions (`read_register`, `read_registers`, `write_register`)
 - `backend.py` - `HttpRegisterBackend` class that implements the `RegisterBackend` protocol
+- `discovery.py` - Device probe and network discovery (`probe_device`, `discover_devices`)
 
 ## References
 

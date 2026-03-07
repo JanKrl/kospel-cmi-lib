@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "aiohttp>=3.9.0",
     "aiofiles>=23.0.0",
-    "pydantic>=2.0.0",
+    "pydantic>=2.11.0",
     "pyyaml>=6.0",
 ]
 classifiers = [
@@ -33,6 +33,7 @@ keywords = ["kospel", "heater", "cmi", "home-assistant", "iot", "async"]
 urls = { Repository = "https://github.com/JanKrl/kospel-cmi-lib" }
 
 [project.scripts]
+kospel-discover = "kospel_cmi.tools.discover:main"
 kospel-scan-registers = "kospel_cmi.tools.register_scanner:main"
 kospel-scan-live = "kospel_cmi.tools.live_scanner:main"
 

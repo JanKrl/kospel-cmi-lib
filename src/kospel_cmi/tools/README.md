@@ -1,6 +1,28 @@
-# Reverse-Engineering Tools
+# Tools
 
-Tools for exploring and reverse-engineering heater registers.
+## Device Discovery
+
+Discover Kospel C.MI devices on your network. No URL or device ID needed.
+
+### CLI Usage
+
+```bash
+# Scan common subnets (192.168.1.0/24, 192.168.0.0/24, 192.168.101.0/24, 10.0.0.0/24)
+kospel-discover
+
+# Scan specific subnet(s)
+kospel-discover 192.168.101.0/24
+kospel-discover 192.168.1.0/24 10.0.0.0/24
+```
+
+**Options:**
+- `SUBNET` - CIDR notation (optional; uses common defaults if omitted)
+- `--timeout SECS` - Per-host probe timeout (default: 3)
+- `--concurrency N` - Max concurrent probes per subnet (default: 20)
+
+**Output:** Table of found devices with host, serial number, model, and API URL ready to use with other tools.
+
+---
 
 ## Live Scanner
 
