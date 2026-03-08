@@ -3,6 +3,16 @@ heater_mode:
   decode: heater_mode
   encode: heater_mode
 
+room_mode:
+  register: "0b32"
+  decode: raw_int
+  encode: raw_int
+
+cwu_mode:
+  register: "0b30"
+  decode: raw_int
+  encode: raw_int
+
 is_water_heater_enabled:
   register: "0b55"
   bit_index: 4

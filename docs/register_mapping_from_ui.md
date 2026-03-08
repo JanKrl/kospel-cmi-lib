@@ -90,6 +90,8 @@ Interfejs odświeża ekran startowy odczytem 30 rejestrów od 0b2f. Poniżej map
 | 0bcc | Temperatura ręczna min (zakres) | ×10 °C |
 | 0bcd | Temperatura ręczna max (zakres) | ×10 °C |
 
+**Uwaga:** Aby 0b8d (temperatura ręczna) była używana przez firmware, rejestr 0b32 (tryb pokojowy) musi być ustawiony na 64 (ręczny). Dla CWU: 0b30 wybiera 0b66 (ekonomia) vs 0b67 (komfort).
+
 ## Temperatury pokojowe
 
 | Rejestr | Znaczenie |

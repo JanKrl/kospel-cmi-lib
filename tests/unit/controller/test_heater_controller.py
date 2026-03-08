@@ -4,7 +4,7 @@ import pytest
 
 from kospel_cmi.controller.api import HeaterController
 from kospel_cmi.controller.registry import load_registry
-from kospel_cmi.registers.enums import HeaterMode
+from kospel_cmi.registers.enums import CwuMode, HeaterMode
 
 REGISTRY = load_registry("kospel_cmi_standard")
 
@@ -14,6 +14,7 @@ class MockRegisterBackend:
 
     def __init__(self, registers: dict[str, str] | None = None) -> None:
         self.registers = registers or {}
+        self.writes: list[tuple[str, str]] = []
 
     async def read_register(self, register: str) -> str | None:
         return self.registers.get(register, "0000")
@@ -31,6 +32,7 @@ class MockRegisterBackend:
         return result
 
     async def write_register(self, register: str, hex_value: str) -> bool:
+        self.writes.append((register, hex_value))
         self.registers[register] = hex_value
         return True
 
@@ -132,3 +134,99 @@ class TestHeaterControllerWithMockBackend:
             assert ctrl is controller
             assert not backend.aclose_called
         assert backend.aclose_called
+
+    @pytest.mark.asyncio
+    async def test_heater_mode_manual_save_injects_room_mode(self) -> None:
+        """When heater_mode=MANUAL is saved, write_register is called for 0b55 and 0b32."""
+        backend = MockRegisterBackend({"0b55": "d700", "0b32": "0100"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        controller.set_setting("heater_mode", HeaterMode.MANUAL)
+        success = await controller.save()
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert "0b55" in written_registers
+        assert "0b32" in written_registers
+        assert backend.registers["0b32"] == "4000"  # 64 in little-endian
+
+    @pytest.mark.asyncio
+    async def test_manual_temperature_save_alone_does_not_inject_room_mode(
+        self,
+    ) -> None:
+        """When only manual_temperature is saved, 0b32 is not written."""
+        backend = MockRegisterBackend({"0b8d": "c800", "0b32": "0100"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        controller.set_setting("manual_temperature", 23.0)
+        success = await controller.save()
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert "0b8d" in written_registers
+        assert "0b32" not in written_registers
+
+    @pytest.mark.asyncio
+    async def test_set_manual_heating_writes_mode_and_temp_registers(
+        self,
+    ) -> None:
+        """set_manual_heating sets heater_mode, manual_temperature, injects room_mode."""
+        backend = MockRegisterBackend({"0b55": "d700", "0b8d": "c800", "0b32": "0100"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        success = await controller.set_manual_heating(22.0)
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert "0b55" in written_registers
+        assert "0b8d" in written_registers
+        assert "0b32" in written_registers
+        assert backend.registers["0b32"] == "4000"
+
+    @pytest.mark.asyncio
+    async def test_set_water_mode_writes_mode_only(
+        self,
+    ) -> None:
+        """set_water_mode sets cwu_mode only (0b30)."""
+        backend = MockRegisterBackend({"0b30": "0100"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        success = await controller.set_water_mode(CwuMode.COMFORT)
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert written_registers == {"0b30"}
+        assert backend.registers["0b30"] == "0200"  # 2 in little-endian
+
+    @pytest.mark.asyncio
+    async def test_set_water_mode_raises_on_invalid_type(self) -> None:
+        """set_water_mode raises TypeError when mode is not CwuMode."""
+        backend = MockRegisterBackend({"0b30": "0100"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        with pytest.raises(TypeError, match="mode must be CwuMode"):
+            await controller.set_water_mode(2)  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_set_water_comfort_temperature_writes_temp_only(
+        self,
+    ) -> None:
+        """set_water_comfort_temperature sets cwu_temperature_comfort only (0b67)."""
+        backend = MockRegisterBackend({"0b30": "0200", "0b67": "6801"})
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        success = await controller.set_water_comfort_temperature(38.0)
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert written_registers == {"0b67"}
+        assert backend.registers["0b67"] == "7c01"  # 38.0 in little-endian
+
+    @pytest.mark.asyncio
+    async def test_set_water_economy_temperature_writes_temp_only(
+        self,
+    ) -> None:
+        """set_water_economy_temperature sets cwu_temperature_economy only (0b66)."""
+        backend = MockRegisterBackend({"0b30": "0000", "0b66": "6801"})  # 36°C -> 35°C
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        success = await controller.set_water_economy_temperature(35.0)
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert written_registers == {"0b66"}
+        assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian

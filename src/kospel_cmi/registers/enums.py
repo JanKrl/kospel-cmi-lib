@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 
 class HeaterMode(Enum):
@@ -38,7 +38,25 @@ class PumpStatus(Enum):
     IDLE = "Idle"
 
 
-# Registry for resolving enum paths from YAML (e.g. "WaterHeaterEnabled.ENABLED" -> WaterHeaterEnabled.ENABLED)
+class CwuMode(IntEnum):
+    """CWU (domestic hot water) mode — which temperature source is active.
+
+    Stored in register 0b30. Values: 0=economy (0b66), 1=anti-freeze,
+    2=comfort (0b67).
+    """
+
+    ECONOMY = 0  # Uses cwu_temperature_economy (0b66)
+    ANTI_FREEZE = 1  # Anti-freeze protection
+    COMFORT = 2  # Uses cwu_temperature_comfort (0b67)
+
+
+# Firmware value for room_mode (0b32) when heater_mode=MANUAL.
+# Tells firmware to use manual_temperature (0b8d) as the target.
+ROOM_MODE_MANUAL = 64
+
+
+# Registry for resolving enum paths from YAML
+# (e.g. "WaterHeaterEnabled.ENABLED" -> WaterHeaterEnabled.ENABLED)
 ENUM_REGISTRY: dict[str, type[Enum]] = {
     "HeaterMode": HeaterMode,
     "WaterHeaterEnabled": WaterHeaterEnabled,

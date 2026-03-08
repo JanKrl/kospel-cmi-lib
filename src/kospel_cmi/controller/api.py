@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any
 
 from ..kospel.backend import RegisterBackend
+from ..registers.enums import CwuMode, HeaterMode, ROOM_MODE_MANUAL
 from .registry import SettingDefinition
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,14 @@ class HeaterController:
             logger.debug("No pending writes")
             return True
 
+        # CO: when heater mode is MANUAL, ensure room_mode=ROOM_MODE_MANUAL so
+        # firmware uses 0b8d. Mode is bound to heater mode, not to temperature.
+        if (
+            "heater_mode" in self._pending_writes
+            and self._pending_writes["heater_mode"] == HeaterMode.MANUAL
+        ):
+            self._pending_writes["room_mode"] = ROOM_MODE_MANUAL
+
         logger.info(f"Saving {len(self._pending_writes)} setting(s) to API")
         success = True
 
@@ -287,6 +296,71 @@ class HeaterController:
             logger.error("Some settings failed to save")
 
         return success
+
+    async def set_manual_heating(self, temperature: float) -> bool:
+        """Set manual heater mode and target temperature.
+
+        room_mode=64 is injected in save() when heater_mode=MANUAL.
+
+        Args:
+            temperature: Target temperature in °C (e.g. 22.0)
+
+        Returns:
+            True if save succeeded, False otherwise
+        """
+        self.heater_mode = HeaterMode.MANUAL
+        self.manual_temperature = temperature
+        return await self.save()
+
+    async def set_water_mode(self, mode: CwuMode) -> bool:
+        """Set CWU water mode (which temperature source is active).
+
+        Args:
+            mode: CWU mode (CwuMode.ECONOMY, CwuMode.ANTI_FREEZE, or
+                CwuMode.COMFORT)
+
+        Returns:
+            True if save succeeded, False otherwise
+
+        Raises:
+            TypeError: If mode is not a CwuMode enum member
+        """
+        if not isinstance(mode, CwuMode):
+            raise TypeError(
+                f"mode must be CwuMode, got {type(mode).__name__}"
+            )
+        self.cwu_mode = mode.value
+        return await self.save()
+
+    async def set_water_comfort_temperature(self, temperature: float) -> bool:
+        """Set CWU comfort temperature (0b67).
+
+        Does not change cwu_mode. Use set_water_mode(CwuMode.COMFORT) first if
+        switching to comfort mode.
+
+        Args:
+            temperature: Target temperature in °C (e.g. 38.0)
+
+        Returns:
+            True if save succeeded, False otherwise
+        """
+        self.cwu_temperature_comfort = temperature
+        return await self.save()
+
+    async def set_water_economy_temperature(self, temperature: float) -> bool:
+        """Set CWU economy temperature (0b66).
+
+        Does not change cwu_mode. Use set_water_mode(CwuMode.ECONOMY) first if
+        switching to economy mode.
+
+        Args:
+            temperature: Target temperature in °C (e.g. 35.0)
+
+        Returns:
+            True if save succeeded, False otherwise
+        """
+        self.cwu_temperature_economy = temperature
+        return await self.save()
 
     def get_setting(self, name: str) -> Any:
         """Explicit getter for a setting.
