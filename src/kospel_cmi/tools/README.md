@@ -155,8 +155,8 @@ registers:
   "0b00":
     hex: "d700"
     raw_int: 215
-    scaled_temp: 21.5
-    scaled_pressure: 2.15
+    scaled_x10: 21.5
+    scaled_x100: 2.15
     bits: {0: true, 1: true, 2: true, 3: false, ...}
   "0b01":
     ...

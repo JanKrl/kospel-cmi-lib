@@ -15,6 +15,30 @@ is_manual_mode_enabled:
     true_value: ManualMode.ENABLED
     false_value: ManualMode.DISABLED
 
+is_party_mode_enabled:
+  register: "0b55"
+  bit_index: 6
+  decode:
+    type: map
+    true_value: PartyMode.ENABLED
+    false_value: PartyMode.DISABLED
+  encode:
+    type: map
+    true_value: PartyMode.ENABLED
+    false_value: PartyMode.DISABLED
+
+is_vacation_mode_enabled:
+  register: "0b55"
+  bit_index: 7
+  decode:
+    type: map
+    true_value: VacationMode.ENABLED
+    false_value: VacationMode.DISABLED
+  encode:
+    type: map
+    true_value: VacationMode.ENABLED
+    false_value: VacationMode.DISABLED
+
 is_water_heater_enabled:
   register: "0b55"
   bit_index: 4
@@ -53,43 +77,108 @@ valve_position:
 
 manual_temperature:
   register: "0b8d"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_economy:
   register: "0b68"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort:
   register: "0b6a"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort_plus:
   register: "0b6b"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort_minus:
   register: "0b69"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 cwu_temperature_economy:
   register: "0b66"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 cwu_temperature_comfort:
   register: "0b67"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 pressure:
+  register: "0b4e"
+  decode: scaled_x100
+
+water_current_temperature:
+  register: "0b4a"
+  decode: scaled_x10
+
+inlet_temperature:
+  register: "0b48"
+  decode: scaled_x10
+
+outlet_temperature:
+  register: "0b49"
+  decode: scaled_x10
+
+outside_temperature:
+  register: "0b4c"
+  decode: scaled_x10
+
+supply_setpoint:
+  register: "0b2f"
+  decode: scaled_x10
+
+room_setpoint:
+  register: "0b31"
+  decode: scaled_x10
+
+power:
+  register: "0b46"
+  decode: scaled_x10
+
+flow:
+  register: "0b4f"
+  decode: scaled_x10
+
+error_code:
+  register: "0b52"
+  decode: raw_int
+
+work_mode:
   register: "0b8a"
-  decode: scaled_pressure
+  decode: raw_int
 
 room_temperature:
+  register: "0b4b"
+  decode: scaled_x10
+
+party_vacation_end_minute:
+  register: "0b6c"
+  decode: raw_int
+  encode: raw_int
+
+party_vacation_end_hour:
   register: "0b6d"
-  decode: scaled_temp
+  decode: raw_int
+  encode: raw_int
+
+party_vacation_end_day:
+  register: "0b6e"
+  decode: raw_int
+  encode: raw_int
+
+party_vacation_end_month:
+  register: "0b6f"
+  decode: raw_int
+  encode: raw_int
+
+party_vacation_end_year:
+  register: "0b70"
+  decode: raw_int
+  encode: raw_int

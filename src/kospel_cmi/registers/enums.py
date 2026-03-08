@@ -16,6 +16,20 @@ class ManualMode(Enum):
     DISABLED = "Auto mode"  # Manual mode is disabled
 
 
+class PartyMode(Enum):
+    """Party mode."""
+
+    ENABLED = "Party mode"  # Party mode is enabled
+    DISABLED = "Auto mode"  # Party mode is disabled
+
+
+class VacationMode(Enum):
+    """Vacation mode."""
+
+    ENABLED = "Vacation mode"  # Vacation mode is enabled
+    DISABLED = "Auto mode"  # Vacation mode is disabled
+
+
 class WaterHeaterEnabled(Enum):
     """Water heater enabled."""
 
@@ -41,6 +55,8 @@ class PumpStatus(Enum):
 ENUM_REGISTRY: dict[str, type[Enum]] = {
     "HeaterMode": HeaterMode,
     "ManualMode": ManualMode,
+    "PartyMode": PartyMode,
+    "VacationMode": VacationMode,
     "WaterHeaterEnabled": WaterHeaterEnabled,
     "ValvePosition": ValvePosition,
     "PumpStatus": PumpStatus,

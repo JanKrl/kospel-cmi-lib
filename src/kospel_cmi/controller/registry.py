@@ -14,18 +14,11 @@ import yaml
 from pydantic import BaseModel, Field
 
 from ..registers import DECODER_REGISTRY, ENCODER_REGISTRY, ENUM_REGISTRY
-from ..registers.decoders import (
-    Decoder,
-    decode_map,
-    decode_heater_mode,
-    decode_scaled_temp,
-    decode_scaled_pressure,
-)
+from ..registers.decoders import Decoder, decode_map
 from ..registers.encoders import (
     Encoder,
     encode_heater_mode,
     encode_map,
-    encode_scaled_temp,
 )
 
 logger = logging.getLogger(__name__)

@@ -51,7 +51,7 @@ is_manual_mode_enabled:
 ```yaml
 pressure:
   register: "0b8a"
-  decode: scaled_pressure
+  decode: scaled_x100
 ```
 
 ## SettingDefinition Fields
@@ -66,8 +66,8 @@ pressure:
 Registered in `registers/decoders.py` and `registers/encoders.py`:
 
 - **heater_mode**: Decode/encode HeaterMode enum (bits 3, 5)
-- **scaled_temp**: Temperature ×10
-- **scaled_pressure**: Pressure ×100
+- **scaled_x10**: Value ×10 (temperatures, durations, etc.)
+- **scaled_x100**: Value ×100 (pressure, flow, etc.)
 - **map**: Bit → enum (requires `true_value` and `false_value` as `EnumName.MEMBER`)
 
 ## Validation

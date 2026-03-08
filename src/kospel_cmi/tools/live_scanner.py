@@ -130,10 +130,10 @@ def serialize_changes(
                 "new_hex": new_reg.hex,
                 "old_int": old_reg.raw_int,
                 "new_int": new_reg.raw_int,
-                "old_scaled_temp": old_reg.scaled_temp,
-                "new_scaled_temp": new_reg.scaled_temp,
-                "old_scaled_pressure": old_reg.scaled_pressure,
-                "new_scaled_pressure": new_reg.scaled_pressure,
+                "old_scaled_x10": old_reg.scaled_x10,
+                "new_scaled_x10": new_reg.scaled_x10,
+                "old_scaled_x100": old_reg.scaled_x100,
+                "new_scaled_x100": new_reg.scaled_x100,
             }
         )
 
