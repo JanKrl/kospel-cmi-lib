@@ -57,10 +57,16 @@ def decode_heater_mode(
 ) -> Optional[HeaterMode]:
     """Decode heater mode from register 0b55 hex string.
 
+    Bits: 3=SUMMER, 5=WINTER, 6=PARTY, 7=VACATION, 9=MANUAL.
+    Priority order: MANUAL > PARTY > VACATION > SUMMER > WINTER > OFF.
+
     Args:
         hex_val: Hex string from register 0b55
         bit_index: Ignored
     """
+    MANUAL_BIT = 9
+    PARTY_BIT = 6
+    VACATION_BIT = 7
     SUMMER_BIT = 3
     WINTER_BIT = 5
 
@@ -70,15 +76,18 @@ def decode_heater_mode(
         # Validate hex string
         int(hex_val, 16)
         flags_0b55 = reg_to_int(hex_val)
-        is_summer = get_bit(flags_0b55, SUMMER_BIT)
-        is_winter = get_bit(flags_0b55, WINTER_BIT)
 
-        if is_summer:
+        if get_bit(flags_0b55, MANUAL_BIT):
+            return HeaterMode.MANUAL
+        if get_bit(flags_0b55, PARTY_BIT):
+            return HeaterMode.PARTY
+        if get_bit(flags_0b55, VACATION_BIT):
+            return HeaterMode.VACATION
+        if get_bit(flags_0b55, SUMMER_BIT):
             return HeaterMode.SUMMER
-        elif is_winter:
+        if get_bit(flags_0b55, WINTER_BIT):
             return HeaterMode.WINTER
-        else:
-            return HeaterMode.OFF
+        return HeaterMode.OFF
     except (ValueError, TypeError):
         return None
 
@@ -98,8 +107,8 @@ def decode_bit_boolean(hex_val: str, bit_index: Optional[int] = None) -> Optiona
             return None
         # Validate hex string
         int(hex_val, 16)
-        regiser_int = reg_to_int(hex_val)
-        return get_bit(regiser_int, bit_index)
+        register_int = reg_to_int(hex_val)
+        return get_bit(register_int, bit_index)
     except (ValueError, TypeError):
         return None
 

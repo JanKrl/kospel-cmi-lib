@@ -33,17 +33,17 @@ heater_mode:
 **Parameterized decoder (map with enum):**
 
 ```yaml
-is_manual_mode_enabled:
+is_water_heater_enabled:
   register: "0b55"
-  bit_index: 9
+  bit_index: 4
   decode:
     type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED
   encode:
     type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED
 ```
 
 **Read-only (no encode):**
@@ -65,7 +65,7 @@ pressure:
 
 Registered in `registers/decoders.py` and `registers/encoders.py`:
 
-- **heater_mode**: Decode/encode HeaterMode enum (bits 3, 5)
+- **heater_mode**: Decode/encode HeaterMode enum (bits 3, 5, 6, 7, 9 for OFF/SUMMER/WINTER/PARTY/VACATION/MANUAL)
 - **scaled_x10**: Value ×10 (temperatures, durations, etc.)
 - **scaled_x100**: Value ×100 (pressure, flow, etc.)
 - **map**: Bit → enum (requires `true_value` and `false_value` as `EnumName.MEMBER`)

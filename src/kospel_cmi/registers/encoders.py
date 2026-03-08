@@ -40,16 +40,18 @@ def encode_heater_mode(
 ) -> Optional[str]:
     """Encode heater mode to hex string for register 0b55.
 
-    Heater mode is stored in register 0b55 using bits 3 and 5:
-    - Summer: Bit 3=1, Bit 5=0
-    - Winter: Bit 3=0, Bit 5=1
-    - Off: Bit 3=0, Bit 5=0
+    Heater mode is stored in register 0b55 using bits 3, 5, 6, 7, 9:
+    - SUMMER: bit 3=1, others 0
+    - WINTER: bit 5=1, others 0
+    - PARTY: bit 6=1, others 0
+    - VACATION: bit 7=1, others 0
+    - MANUAL: bit 9=1, others 0
+    - OFF: all mode bits 0
 
     Uses read-modify-write pattern to preserve other flag bits in the register.
 
     Args:
         value: HeaterMode enum value
-        register: Register address (should be "0b55")
         bit_index: Ignored (not used for heater mode)
         current_hex: Current hex value of register 0b55 (required for read-modify-write)
 
@@ -64,6 +66,10 @@ def encode_heater_mode(
 
     SUMMER_BIT = 3
     WINTER_BIT = 5
+    PARTY_BIT = 6
+    VACATION_BIT = 7
+    MANUAL_BIT = 9
+    MODE_BITS = (SUMMER_BIT, WINTER_BIT, PARTY_BIT, VACATION_BIT, MANUAL_BIT)
 
     try:
         # Validate hex string format
@@ -77,16 +83,23 @@ def encode_heater_mode(
         current_int = reg_to_int(current_hex)
         new_int = current_int
 
-        # Modify only the mode bits (3 and 5), preserving other flags
+        # Clear all mode bits first
+        for bit in MODE_BITS:
+            new_int = set_bit(new_int, bit, False)
+
+        # Set the bit for the chosen mode
         if value == HeaterMode.SUMMER:
-            new_int = set_bit(new_int, SUMMER_BIT, True)  # Set summer bit
-            new_int = set_bit(new_int, WINTER_BIT, False)  # Clear winter bit
+            new_int = set_bit(new_int, SUMMER_BIT, True)
         elif value == HeaterMode.WINTER:
-            new_int = set_bit(new_int, SUMMER_BIT, False)  # Clear summer bit
-            new_int = set_bit(new_int, WINTER_BIT, True)  # Set winter bit
+            new_int = set_bit(new_int, WINTER_BIT, True)
+        elif value == HeaterMode.PARTY:
+            new_int = set_bit(new_int, PARTY_BIT, True)
+        elif value == HeaterMode.VACATION:
+            new_int = set_bit(new_int, VACATION_BIT, True)
+        elif value == HeaterMode.MANUAL:
+            new_int = set_bit(new_int, MANUAL_BIT, True)
         elif value == HeaterMode.OFF:
-            new_int = set_bit(new_int, SUMMER_BIT, False)  # Clear summer bit
-            new_int = set_bit(new_int, WINTER_BIT, False)  # Clear winter bit
+            pass  # all bits already cleared
 
         logger.debug(
             f"Encoding heater mode to {value.value}: "
@@ -147,8 +160,8 @@ def encode_map(
     """Returns an encoder function that maps an Enum or bool value to a boolean bit.
 
     Args:
-        true_value: Enum value that represents True (e.g., ManualMode.ENABLED)
-        false_value: Enum value that represents False (e.g., ManualMode.DISABLED)
+        true_value: Enum value that represents True (e.g., WaterHeaterEnabled.ENABLED)
+        false_value: Enum value that represents False (e.g., WaterHeaterEnabled.DISABLED)
 
     Returns:
         Encoder function that converts enum/bool to bit

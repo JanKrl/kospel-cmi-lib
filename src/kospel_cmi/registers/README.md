@@ -30,14 +30,17 @@ Some registers use individual bits as flags (specific register addresses may var
 - Bit 3: Summer mode
 - Bit 4: Water heater enabled
 - Bit 5: Winter mode
-- Bit 6: Party mode enabled
-- Bit 7: Vacation mode enabled
-- Bit 9: Manual mode enabled
+- Bit 6: Party mode
+- Bit 7: Vacation mode
+- Bit 9: Manual mode
 
-**Heater Mode Logic** (register 0b55, bits 3 & 5):
-- Summer: Bit 3=1, Bit 5=0
-- Winter: Bit 3=0, Bit 5=1
-- Off: Bit 3=0, Bit 5=0
+**Heater Mode** (register 0b55, bits 3, 5, 6, 7, 9) — six mutually exclusive modes:
+- OFF: All mode bits cleared
+- SUMMER: Bit 3=1
+- WINTER: Bit 5=1
+- PARTY: Bit 6=1
+- VACATION: Bit 7=1
+- MANUAL: Bit 9=1
 
 ### Register 0b51 (Component Status)
 
@@ -88,12 +91,12 @@ Register values may vary per device type / version. Currently the project includ
 ### Flag Registers
 
 - `0b51`: Component status (pumps, valve)
-- `0b55`: System flags (modes, manual mode, water heater, party, vacation)
+- `0b55`: System flags (heater mode, water heater)
 
 ### Mode Registers
 
 - `0b8a`: Work mode (0=CO, 1=Heat Source, 2=Buffer)
-- `0b55`: Heater mode (bits 3,5 for summer/winter/off)
+- `0b55`: Heater mode (bits 3, 5, 6, 7, 9 for OFF/SUMMER/WINTER/PARTY/VACATION/MANUAL)
 
 ### Vacation Mode Registers (tryb wakacje)
 

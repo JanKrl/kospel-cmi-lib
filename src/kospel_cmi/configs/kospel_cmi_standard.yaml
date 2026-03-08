@@ -3,42 +3,6 @@ heater_mode:
   decode: heater_mode
   encode: heater_mode
 
-is_manual_mode_enabled:
-  register: "0b55"
-  bit_index: 9
-  decode:
-    type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
-  encode:
-    type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
-
-is_party_mode_enabled:
-  register: "0b55"
-  bit_index: 6
-  decode:
-    type: map
-    true_value: PartyMode.ENABLED
-    false_value: PartyMode.DISABLED
-  encode:
-    type: map
-    true_value: PartyMode.ENABLED
-    false_value: PartyMode.DISABLED
-
-is_vacation_mode_enabled:
-  register: "0b55"
-  bit_index: 7
-  decode:
-    type: map
-    true_value: VacationMode.ENABLED
-    false_value: VacationMode.DISABLED
-  encode:
-    type: map
-    true_value: VacationMode.ENABLED
-    false_value: VacationMode.DISABLED
-
 is_water_heater_enabled:
   register: "0b55"
   bit_index: 4

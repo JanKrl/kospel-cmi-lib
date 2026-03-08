@@ -135,13 +135,11 @@ Some registers use individual bits as boolean flags. Flags are accessed via bit 
 ```
 Bit 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
 ┌──────────────────────────────────────────────────────────────────┐
-│                    │    │    │    │Win │Wat │Sum │              │
-│                    │    │    │    │Ter │Hea │mer │              │
-│                    │Man │    │    │(5) │(4) │(3) │              │
-│                    │Mod │    │    │    │    │    │              │
-│                    │(9) │    │    │    │    │    │              │
+│                    │Man │    │Vac │Par │Win │Wat │Sum │          │
+│                    │(9) │    │(7) │(6) │(5) │(4) │(3) │          │
 └──────────────────────────────────────────────────────────────────┘
 ```
+Heater mode (bits 3, 5, 6, 7, 9): OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL — mutually exclusive.
 
 **Bit Operations**:
 - Read: `(value >> bit_index) & 1`

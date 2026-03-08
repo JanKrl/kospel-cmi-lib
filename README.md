@@ -107,7 +107,7 @@ import aiohttp
 from kospel_cmi.controller.api import HeaterController
 from kospel_cmi.controller.registry import load_registry
 from kospel_cmi.kospel.backend import HttpRegisterBackend
-from kospel_cmi.registers.enums import HeaterMode, ManualMode
+from kospel_cmi.registers.enums import HeaterMode
 
 async def main():
     registry = load_registry("kospel_cmi_standard")
@@ -115,12 +115,11 @@ async def main():
         backend = HttpRegisterBackend(session, "http://192.168.1.1/api/dev/65")
         async with HeaterController(backend=backend, registry=registry) as controller:
             await controller.refresh()
-            
-            # Modify settings
+
+            # Change heater mode (OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL)
             controller.heater_mode = HeaterMode.WINTER
-            controller.manual_temperature = 22.0
-            controller.is_manual_mode_enabled = ManualMode.ENABLED
-            
+            controller.manual_temperature = 22.0  # Used when MANUAL mode
+
             # Write all changes at once
             success = await controller.save()
             print(f"Settings saved: {success}")
