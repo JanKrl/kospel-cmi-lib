@@ -15,6 +15,30 @@ is_manual_mode_enabled:
     true_value: ManualMode.ENABLED
     false_value: ManualMode.DISABLED
 
+is_party_mode_enabled:
+  register: "0b55"
+  bit_index: 6
+  decode:
+    type: map
+    true_value: PartyMode.ENABLED
+    false_value: PartyMode.DISABLED
+  encode:
+    type: map
+    true_value: PartyMode.ENABLED
+    false_value: PartyMode.DISABLED
+
+is_vacation_mode_enabled:
+  register: "0b55"
+  bit_index: 7
+  decode:
+    type: map
+    true_value: VacationMode.ENABLED
+    false_value: VacationMode.DISABLED
+  encode:
+    type: map
+    true_value: VacationMode.ENABLED
+    false_value: VacationMode.DISABLED
+
 is_water_heater_enabled:
   register: "0b55"
   bit_index: 4
@@ -87,48 +111,74 @@ cwu_temperature_comfort:
   encode: scaled_x10
 
 pressure:
+  register: "0b4e"
+  decode: scaled_x100
+
+water_current_temperature:
+  register: "0b4a"
+  decode: scaled_x10
+
+inlet_temperature:
+  register: "0b48"
+  decode: scaled_x10
+
+outlet_temperature:
+  register: "0b49"
+  decode: scaled_x10
+
+outside_temperature:
+  register: "0b4c"
+  decode: scaled_x10
+
+supply_setpoint:
+  register: "0b2f"
+  decode: scaled_x10
+
+room_setpoint:
+  register: "0b31"
+  decode: scaled_x10
+
+power:
+  register: "0b46"
+  decode: scaled_x10
+
+flow:
+  register: "0b4f"
+  decode: scaled_x10
+
+error_code:
+  register: "0b52"
+  decode: raw_int
+
+work_mode:
   register: "0b8a"
-  decode: scaled_pressure
+  decode: raw_int
 
 room_temperature:
   register: "0b4b"
   decode: scaled_x10
 
-# Tryb wakacje (vacation mode)
-# Czas trwania: 0b59 (scaled ×10, wartość w GODZINACH, np. 79.5 = 79.5 h)
-# scaled_x10: wartość ×10 w rejestrze (format jak temperatury)
-# Czas zakończenia: 0b6c-0b70 (minuta, godzina, dzień, miesiąc, rok)
-# 0b5a = 0xffff (-1) gdy "Do odwołania" (indefinite)
-vacation_duration_hours:
-  register: "0b59"
-  decode: scaled_x10
-  encode: scaled_x10
-
-vacation_end_indefinite:
-  register: "0b5a"
-  decode: raw_int
-
-vacation_end_minute:
+party_vacation_end_minute:
   register: "0b6c"
   decode: raw_int
   encode: raw_int
 
-vacation_end_hour:
+party_vacation_end_hour:
   register: "0b6d"
   decode: raw_int
   encode: raw_int
 
-vacation_end_day:
+party_vacation_end_day:
   register: "0b6e"
   decode: raw_int
   encode: raw_int
 
-vacation_end_month:
+party_vacation_end_month:
   register: "0b6f"
   decode: raw_int
   encode: raw_int
 
-vacation_end_year:
+party_vacation_end_year:
   register: "0b70"
   decode: raw_int
   encode: raw_int

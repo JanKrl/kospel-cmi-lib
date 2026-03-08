@@ -126,10 +126,13 @@ def decode_scaled_x10(
         return None
 
 
-def decode_scaled_pressure(
+def decode_scaled_x100(
     hex_val: str, bit_index: Optional[int] = None
 ) -> Optional[float]:
-    """Decode pressure value (scaled by 100).
+    """Decode value scaled by 100 (stored as value × 100 in register).
+
+    Use for pressure (bar), flow, and any value with 0.01 precision.
+    E.g. 5.00 bar → 500 → "01f4".
 
     Args:
         hex_val: Hex string from register
@@ -171,6 +174,6 @@ def decode_raw_int(
 DECODER_REGISTRY: dict[str, Callable[..., Optional[object]]] = {
     "heater_mode": decode_heater_mode,
     "scaled_x10": decode_scaled_x10,
-    "scaled_pressure": decode_scaled_pressure,
+    "scaled_x100": decode_scaled_x100,
     "raw_int": decode_raw_int,
 }

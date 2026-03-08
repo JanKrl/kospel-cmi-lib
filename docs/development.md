@@ -40,7 +40,7 @@ If the setting uses a **new** decode/encode type, add it to the registries in `r
 - `ENCODER_REGISTRY` in `registers/encoders.py`
 - `ENUM_REGISTRY` in `registers/enums.py` (for new enums)
 
-For existing types (`scaled_x10`, `scaled_pressure`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
+For existing types (`scaled_x10`, `scaled_x100`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
 
 ### 3. Add enum (if needed)
 

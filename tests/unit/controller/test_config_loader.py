@@ -29,6 +29,8 @@ class TestLoadRegistry:
         expected = {
             "heater_mode",
             "is_manual_mode_enabled",
+            "is_party_mode_enabled",
+            "is_vacation_mode_enabled",
             "is_water_heater_enabled",
             "is_pump_co_running",
             "is_pump_circulation_running",
@@ -41,14 +43,22 @@ class TestLoadRegistry:
             "cwu_temperature_economy",
             "cwu_temperature_comfort",
             "pressure",
+            "water_current_temperature",
             "room_temperature",
-            "vacation_duration_hours",
-            "vacation_end_indefinite",
-            "vacation_end_minute",
-            "vacation_end_hour",
-            "vacation_end_day",
-            "vacation_end_month",
-            "vacation_end_year",
+            "party_vacation_end_minute",
+            "party_vacation_end_hour",
+            "party_vacation_end_day",
+            "party_vacation_end_month",
+            "party_vacation_end_year",
+            "inlet_temperature",
+            "outlet_temperature",
+            "outside_temperature",
+            "supply_setpoint",
+            "room_setpoint",
+            "power",
+            "flow",
+            "error_code",
+            "work_mode",
         }
         assert set(registry.keys()) == expected
 
@@ -77,10 +87,9 @@ class TestLoadRegistry:
         registry = load_registry("kospel_cmi_standard")
         assert registry["pressure"].is_read_only
         assert registry["room_temperature"].is_read_only
+        assert registry["water_current_temperature"].is_read_only
         assert registry["is_pump_co_running"].is_read_only
-        assert registry["vacation_end_indefinite"].is_read_only
         assert not registry["heater_mode"].is_read_only
-        assert not registry["vacation_duration_hours"].is_read_only
 
     def test_map_encode_decode_roundtrip(self) -> None:
         """Map-type setting encode then decode yields same value."""

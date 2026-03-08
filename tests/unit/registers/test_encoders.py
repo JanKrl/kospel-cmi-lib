@@ -9,7 +9,7 @@ from kospel_cmi.registers.encoders import (
     encode_map,
     encode_raw_int,
     encode_scaled_x10,
-    encode_scaled_pressure,
+    encode_scaled_x100,
 )
 from kospel_cmi.registers.enums import HeaterMode, ManualMode, WaterHeaterEnabled
 from kospel_cmi.registers.utils import reg_to_int, get_bit
@@ -175,8 +175,8 @@ class TestEncodeScaledX10:
         assert encode_scaled_x10("not a number", bit_index=0) is None  # type: ignore[arg-type]
 
 
-class TestEncodeScaledPressure:
-    """Tests for encode_scaled_pressure (value * 100)."""
+class TestEncodeScaledX100:
+    """Tests for encode_scaled_x100 (value * 100)."""
 
     @pytest.mark.parametrize(
         ("value", "expected_hex_int"),
@@ -186,15 +186,15 @@ class TestEncodeScaledPressure:
             (1.0, 100),
         ],
     )
-    def test_encodes_pressure(self, value: float, expected_hex_int: int) -> None:
-        """Pressure is scaled by 100 and encoded as register value."""
-        result = encode_scaled_pressure(value, bit_index=0)  # bit_index ignored
+    def test_encodes_value(self, value: float, expected_hex_int: int) -> None:
+        """Value is scaled by 100 and encoded as register value."""
+        result = encode_scaled_x100(value, bit_index=0)  # bit_index ignored
         assert result is not None
         assert reg_to_int(result) == expected_hex_int
 
     def test_invalid_returns_none(self) -> None:
         """Non-numeric value returns None."""
-        assert encode_scaled_pressure("not a number", bit_index=0) is None  # type: ignore[arg-type]
+        assert encode_scaled_x100("not a number", bit_index=0) is None  # type: ignore[arg-type]
 
 
 class TestEncodeRawInt:

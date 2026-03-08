@@ -207,15 +207,17 @@ def encode_scaled_x10(
         return None
 
 
-def encode_scaled_pressure(
+def encode_scaled_x100(
     value: float,
     bit_index: Optional[int],
     current_hex: Optional[str] = None,
 ) -> Optional[str]:
-    """Encode pressure value (scaled by 100) to hex string.
+    """Encode value scaled by 100 (value × 100 stored in register).
+
+    Use for pressure (bar), flow, and any value with 0.01 precision.
 
     Args:
-        value: Pressure value
+        value: Float value (e.g. 5.00 bar)
         bit_index: Ignored
         current_hex: Ignored (not needed for full register write)
 
@@ -223,10 +225,10 @@ def encode_scaled_pressure(
         Hex string to write
     """
     try:
-        scaled_pressure = int(value * 100)
-        return int_to_reg(scaled_pressure)
+        scaled_val = int(value * 100)
+        return int_to_reg(scaled_val)
     except Exception as e:
-        logger.error(f"Error encoding scaled pressure: {e}")
+        logger.error(f"Error encoding scaled_x100: {e}")
         return None
 
 
@@ -263,5 +265,6 @@ def encode_raw_int(
 ENCODER_REGISTRY: dict[str, Callable[..., Optional[str]]] = {
     "heater_mode": encode_heater_mode,
     "scaled_x10": encode_scaled_x10,
+    "scaled_x100": encode_scaled_x100,
     "raw_int": encode_raw_int,
 }

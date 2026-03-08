@@ -30,6 +30,8 @@ Some registers use individual bits as flags (specific register addresses may var
 - Bit 3: Summer mode
 - Bit 4: Water heater enabled
 - Bit 5: Winter mode
+- Bit 6: Party mode enabled
+- Bit 7: Vacation mode enabled
 - Bit 9: Manual mode enabled
 
 **Heater Mode Logic** (register 0b55, bits 3 & 5):
@@ -55,7 +57,7 @@ Register values may vary per device type / version. Currently the project includ
 | `0b4e` | Pressure | Pressure (×100) | `"01f4"` = 5.00 bar |
 | `0b51` | Component status flags | Flags | `"0005"` (bits 0,2 set) |
 | `0b55` | System flags | Flags | `"02a0"` (bits 5,7,9 set) |
-| `0b8a` | Heater mode priority | Integer | `"0000"` = CO Priority |
+| `0b8a` | Work mode (0=CO, 1=Heat Source, 2=Buffer) | Integer | `"0000"` = CO |
 | `0b8d` | Manual temperature | Temp (×10) | `"00e1"` = 22.5°C |
 
 ## Common Register Mappings
@@ -82,16 +84,15 @@ Register values may vary per device type / version. Currently the project includ
 
 - `0b4e`: Pressure (scaled ×100)
 - `0b4f`: Flow rate (l/min, scaled ×10)
-- `0b8a`: Pressure (scaled ×100)
 
 ### Flag Registers
 
 - `0b51`: Component status (pumps, valve)
-- `0b55`: System flags (modes, manual mode, water heater)
+- `0b55`: System flags (modes, manual mode, water heater, party, vacation)
 
 ### Mode Registers
 
-- `0b8a`: Heater mode priority (0=CO, 1=Heat Source, 2=Buffer)
+- `0b8a`: Work mode (0=CO, 1=Heat Source, 2=Buffer)
 - `0b55`: Heater mode (bits 3,5 for summer/winter/off)
 
 ### Vacation Mode Registers (tryb wakacje)

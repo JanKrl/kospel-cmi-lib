@@ -8,7 +8,7 @@ from kospel_cmi.registers.decoders import (
     decode_map,
     decode_raw_int,
     decode_scaled_x10,
-    decode_scaled_pressure,
+    decode_scaled_x100,
 )
 from kospel_cmi.registers.enums import HeaterMode, ManualMode
 
@@ -127,8 +127,8 @@ class TestDecodeScaledX10:
         assert decode_scaled_x10(invalid) is None
 
 
-class TestDecodeScaledPressure:
-    """Tests for decode_scaled_pressure (value / 100)."""
+class TestDecodeScaledX100:
+    """Tests for decode_scaled_x100 (value / 100)."""
 
     @pytest.mark.parametrize(
         ("hex_val", "expected"),
@@ -138,11 +138,11 @@ class TestDecodeScaledPressure:
             ("6400", 1.0),   # 100 in LE -> 1.0
         ],
     )
-    def test_valid_hex_returns_pressure(
+    def test_valid_hex_returns_value(
         self, hex_val: str, expected: float
     ) -> None:
-        """Valid 4-char hex decodes to pressure (value/100)."""
-        assert decode_scaled_pressure(hex_val) == pytest.approx(expected)
+        """Valid 4-char hex decodes to value (value/100)."""
+        assert decode_scaled_x100(hex_val) == pytest.approx(expected)
 
     @pytest.mark.parametrize(
         "invalid",
@@ -150,7 +150,7 @@ class TestDecodeScaledPressure:
     )
     def test_invalid_hex_returns_none(self, invalid: str) -> None:
         """Invalid hex returns None."""
-        assert decode_scaled_pressure(invalid) is None
+        assert decode_scaled_x100(invalid) is None
 
 
 class TestDecodeRawInt:
