@@ -82,3 +82,17 @@ The registry is used by:
 1. **`HeaterController.from_registers()`**: Decodes settings from fetched register data
 2. **`HeaterController.save()`**: Encodes pending writes to register values
 3. **`HeaterController.__getattr__` / `__setattr__`**: Dynamic property access for registry settings
+
+## Helper Methods and Mode Coupling
+
+The firmware uses mode registers to select which temperature source is active. The library handles this coupling:
+
+- **CO (heating):** When `heater_mode=MANUAL` is saved, `room_mode` is set to `ROOM_MODE_MANUAL` (64) automatically so the firmware uses `manual_temperature` (0b8d). Use `set_manual_heating(temperature)` or set `heater_mode=MANUAL` before `manual_temperature` and `save()`.
+- **CWU (water):** Mode and temperature are separate. Use `set_water_mode(CwuMode)` to switch which temperature is active. Use `set_water_comfort_temperature(temp)` or `set_water_economy_temperature(temp)` to set the respective temperatures. Setting temperature alone does not switch mode.
+
+**Helper methods:**
+
+- `set_manual_heating(temperature)` — manual mode + target temperature
+- `set_water_mode(mode: CwuMode)` — CWU mode (ECONOMY, ANTI_FREEZE, COMFORT)
+- `set_water_comfort_temperature(temperature)` — CWU comfort temp only
+- `set_water_economy_temperature(temperature)` — CWU economy temp only

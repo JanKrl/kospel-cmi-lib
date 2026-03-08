@@ -28,6 +28,8 @@ class TestLoadRegistry:
         registry = load_registry("kospel_cmi_standard")
         expected = {
             "heater_mode",
+            "room_mode",
+            "cwu_mode",
             "is_water_heater_enabled",
             "is_pump_co_running",
             "is_pump_circulation_running",
