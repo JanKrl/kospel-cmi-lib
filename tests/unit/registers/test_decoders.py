@@ -10,22 +10,30 @@ from kospel_cmi.registers.decoders import (
     decode_scaled_x10,
     decode_scaled_x100,
 )
-from kospel_cmi.registers.enums import HeaterMode, ManualMode
+from kospel_cmi.registers.enums import HeaterMode, WaterHeaterEnabled
 
 
 class TestDecodeHeaterMode:
-    """Tests for decode_heater_mode (register 0b55, bits 3 and 5)."""
+    """Tests for decode_heater_mode (register 0b55, bits 3, 5, 6, 7, 9)."""
 
     @pytest.mark.parametrize(
         ("hex_val", "expected"),
         [
-            # Summer: bit 3=1, bit 5=0. Value with bit 3 set: 1<<3 = 8. "0800" = 8 in LE
+            # Summer: bit 3=1. 1<<3 = 8. "0800" = 8 in LE
             ("0800", HeaterMode.SUMMER),
-            # Winter: bit 3=0, bit 5=1. 1<<5 = 32. "2000" = 32 in LE
+            # Winter: bit 5=1. 1<<5 = 32. "2000" = 32 in LE
             ("2000", HeaterMode.WINTER),
-            # Off: bits 3 and 5 both 0
+            # Off: all mode bits cleared
             ("0000", HeaterMode.OFF),
-            ("d700", HeaterMode.OFF),  # 215 has no bits 3 or 5 set
+            ("1000", HeaterMode.OFF),  # 16 = bit 4 only (water heater), no mode bits
+            # Party: bit 6=1. 1<<6 = 64. "4000" = 64 in LE
+            ("4000", HeaterMode.PARTY),
+            # Vacation: bit 7=1. 1<<7 = 128. "8000" = 128 in LE
+            ("8000", HeaterMode.VACATION),
+            # Manual: bit 9=1. 1<<9 = 512. "0002" = 512 in LE
+            ("0002", HeaterMode.MANUAL),
+            # 215 = 0xd7 has bits 3,5,6,7 set -> PARTY (highest priority)
+            ("d700", HeaterMode.PARTY),
         ],
     )
     def test_valid_hex_returns_heater_mode(
@@ -83,22 +91,22 @@ class TestDecodeMap:
     def test_returns_decoder_callable(self) -> None:
         """decode_map returns a callable that accepts hex_val and bit_index."""
         decoder = decode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
         assert callable(decoder)
-        # Bit 0 set -> True -> ENABLED
-        assert decoder("0100", 0) == ManualMode.ENABLED
-        # Bit 0 clear -> False -> DISABLED
-        assert decoder("0000", 0) == ManualMode.DISABLED
+        # Bit 4 set -> True -> ENABLED
+        assert decoder("1000", 4) == WaterHeaterEnabled.ENABLED
+        # Bit 4 clear -> False -> DISABLED
+        assert decoder("0000", 4) == WaterHeaterEnabled.DISABLED
 
     def test_invalid_hex_returns_none(self) -> None:
         """When decode_bit_boolean returns None, decode_map returns None."""
         decoder = decode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
-        assert decoder("", 0) is None
+        assert decoder("", 4) is None
 
 
 class TestDecodeScaledX10:

@@ -76,7 +76,7 @@ class SettingSpec(BaseModel):
 
 
 def _resolve_enum_path(path: str) -> Any:
-    """Resolve 'ManualMode.ENABLED' to ManualMode.ENABLED using ENUM_REGISTRY."""
+    """Resolve 'WaterHeaterEnabled.ENABLED' to WaterHeaterEnabled.ENABLED using ENUM_REGISTRY."""
     parts = path.split(".", 1)
     if len(parts) != 2:
         raise RegistryConfigError(f"Invalid enum path: {path!r}. Expected 'EnumName.MEMBER'.")

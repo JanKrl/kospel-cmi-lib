@@ -3,9 +3,9 @@ bad_setting:
   register: "0b55"
   decode:
     type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED
   encode:
     type: map
-    true_value: ManualMode.ENABLED
-    false_value: ManualMode.DISABLED
+    true_value: WaterHeaterEnabled.ENABLED
+    false_value: WaterHeaterEnabled.DISABLED

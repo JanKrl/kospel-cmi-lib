@@ -11,12 +11,12 @@ from kospel_cmi.registers.encoders import (
     encode_scaled_x10,
     encode_scaled_x100,
 )
-from kospel_cmi.registers.enums import HeaterMode, ManualMode, WaterHeaterEnabled
+from kospel_cmi.registers.enums import HeaterMode, WaterHeaterEnabled
 from kospel_cmi.registers.utils import reg_to_int, get_bit
 
 
 class TestEncodeHeaterMode:
-    """Tests for encode_heater_mode (read-modify-write bits 3 and 5)."""
+    """Tests for encode_heater_mode (read-modify-write bits 3, 5, 6, 7, 9)."""
 
     def test_requires_current_hex(self) -> None:
         """Returns None when current_hex is None."""
@@ -34,8 +34,12 @@ class TestEncodeHeaterMode:
             (HeaterMode.SUMMER, "0000"),
             (HeaterMode.WINTER, "0000"),
             (HeaterMode.OFF, "0000"),
+            (HeaterMode.PARTY, "0000"),
+            (HeaterMode.VACATION, "0000"),
+            (HeaterMode.MANUAL, "0000"),
             (HeaterMode.SUMMER, "2000"),  # overwrite winter
             (HeaterMode.WINTER, "0800"),  # overwrite summer
+            (HeaterMode.PARTY, "0800"),  # overwrite summer
         ],
     )
     def test_encodes_mode_bits(self, value: HeaterMode, current_hex: str) -> None:
@@ -45,15 +49,15 @@ class TestEncodeHeaterMode:
         assert decode_heater_mode(result) == value
 
     def test_preserves_other_bits(self) -> None:
-        """Encoding Summer preserves other bits (e.g. bit 9) from current_hex."""
-        # Set bit 9 in current: 512 = 1<<9, LE "0002". Encode Summer (bits 3 and 5).
-        current = "0002"
+        """Encoding heater mode preserves non-mode bits (e.g. bit 4) from current_hex."""
+        # Set bit 4 (water heater) in current: 16 = 1<<4, LE "1000"
+        current = "1000"
         result = encode_heater_mode(HeaterMode.SUMMER, current_hex=current)
         assert result is not None
         assert decode_heater_mode(result) == HeaterMode.SUMMER
-        # Bit 9 should still be set (manual mode preserved)
+        # Bit 4 should still be set (water heater preserved)
         decoded_int = reg_to_int(result)
-        assert get_bit(decoded_int, 9) is True
+        assert get_bit(decoded_int, 4) is True
 
 
 class TestEncodeBitBoolean:
@@ -101,36 +105,36 @@ class TestEncodeMap:
     def test_requires_bit_index(self) -> None:
         """Returns None when bit_index is None."""
         encoder = encode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
-        assert encoder(ManualMode.ENABLED, bit_index=None, current_hex="0000") is None
+        assert encoder(WaterHeaterEnabled.ENABLED, bit_index=None, current_hex="0000") is None
 
     def test_requires_current_hex(self) -> None:
         """Returns None when current_hex is None."""
         encoder = encode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
-        assert encoder(ManualMode.ENABLED, bit_index=0, current_hex=None) is None
+        assert encoder(WaterHeaterEnabled.ENABLED, bit_index=4, current_hex=None) is None
 
     @pytest.mark.parametrize(
         ("value", "expected_bit"),
         [
-            (ManualMode.ENABLED, True),
-            (ManualMode.DISABLED, False),
+            (WaterHeaterEnabled.ENABLED, True),
+            (WaterHeaterEnabled.DISABLED, False),
         ],
     )
-    def test_enum_to_bit(self, value: ManualMode, expected_bit: bool) -> None:
+    def test_enum_to_bit(self, value: WaterHeaterEnabled, expected_bit: bool) -> None:
         """Enum value encodes to correct bit."""
         encoder = encode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
-        result = encoder(value, bit_index=9, current_hex="0000")
+        result = encoder(value, bit_index=4, current_hex="0000")
         assert result is not None
         decoded = reg_to_int(result)
-        assert get_bit(decoded, 9) == expected_bit
+        assert get_bit(decoded, 4) == expected_bit
 
     def test_bool_accepted(self) -> None:
         """Bool value is accepted and encoded."""
@@ -146,10 +150,10 @@ class TestEncodeMap:
     def test_unsupported_value_returns_none(self) -> None:
         """Value that is neither enum nor bool returns None."""
         encoder = encode_map(
-            true_value=ManualMode.ENABLED,
-            false_value=ManualMode.DISABLED,
+            true_value=WaterHeaterEnabled.ENABLED,
+            false_value=WaterHeaterEnabled.DISABLED,
         )
-        assert encoder("invalid", bit_index=0, current_hex="0000") is None
+        assert encoder("invalid", bit_index=4, current_hex="0000") is None
 
 
 class TestEncodeScaledX10:

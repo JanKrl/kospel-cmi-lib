@@ -2,32 +2,19 @@ from enum import Enum
 
 
 class HeaterMode(Enum):
-    """Heater operating mode."""
+    """Heater operating mode.
 
-    SUMMER = "Summer"  # In summer mode only water is heated
-    WINTER = "Winter"  # In winter mode both water and radiators are heated
-    OFF = "Off"  # The heater is off
+    All six modes are mutually exclusive per the manufacturer UI.
+    Stored in register 0b55: bit 3=SUMMER, bit 5=WINTER, bit 6=PARTY,
+    bit 7=VACATION, bit 9=MANUAL. OFF = all mode bits cleared.
+    """
 
-
-class ManualMode(Enum):
-    """Manual mode."""
-
-    ENABLED = "Manual mode"  # Manual mode is enabled
-    DISABLED = "Auto mode"  # Manual mode is disabled
-
-
-class PartyMode(Enum):
-    """Party mode."""
-
-    ENABLED = "Party mode"  # Party mode is enabled
-    DISABLED = "Auto mode"  # Party mode is disabled
-
-
-class VacationMode(Enum):
-    """Vacation mode."""
-
-    ENABLED = "Vacation mode"  # Vacation mode is enabled
-    DISABLED = "Auto mode"  # Vacation mode is disabled
+    OFF = "off"
+    SUMMER = "summer"  # Water only
+    WINTER = "winter"  # Water + radiators
+    PARTY = "party"  # Temporary comfort boost
+    VACATION = "vacation"  # Reduced heating when away
+    MANUAL = "manual"  # Manual temperature override
 
 
 class WaterHeaterEnabled(Enum):
@@ -51,12 +38,9 @@ class PumpStatus(Enum):
     IDLE = "Idle"
 
 
-# Registry for resolving enum paths from YAML (e.g. "ManualMode.ENABLED" -> ManualMode.ENABLED)
+# Registry for resolving enum paths from YAML (e.g. "WaterHeaterEnabled.ENABLED" -> WaterHeaterEnabled.ENABLED)
 ENUM_REGISTRY: dict[str, type[Enum]] = {
     "HeaterMode": HeaterMode,
-    "ManualMode": ManualMode,
-    "PartyMode": PartyMode,
-    "VacationMode": VacationMode,
     "WaterHeaterEnabled": WaterHeaterEnabled,
     "ValvePosition": ValvePosition,
     "PumpStatus": PumpStatus,

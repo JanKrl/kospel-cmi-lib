@@ -28,9 +28,6 @@ class TestLoadRegistry:
         registry = load_registry("kospel_cmi_standard")
         expected = {
             "heater_mode",
-            "is_manual_mode_enabled",
-            "is_party_mode_enabled",
-            "is_vacation_mode_enabled",
             "is_water_heater_enabled",
             "is_pump_co_running",
             "is_pump_circulation_running",
@@ -64,19 +61,20 @@ class TestLoadRegistry:
 
     def test_loaded_registry_decodes_same_as_hardcoded(self) -> None:
         """load_registry produces registry that decodes like the old hardcoded one."""
-        from kospel_cmi.registers.enums import HeaterMode, ManualMode
+        from kospel_cmi.registers.enums import HeaterMode
 
         registry = load_registry("kospel_cmi_standard")
         heater_mode_def = registry["heater_mode"]
-        manual_def = registry["is_manual_mode_enabled"]
         temp_def = registry["manual_temperature"]
         pressure_def = registry["pressure"]
 
-        # heater_mode: 0b55, Summer = bit 3 set -> "0800"
+        # heater_mode: 0b55, bits 3,5,6,7,9
         assert heater_mode_def.decode("0800") == HeaterMode.SUMMER
-        # is_manual_mode_enabled: bit 9. "0002" = 512 = bit 9 set -> ENABLED
-        assert manual_def.decode("0002") == ManualMode.ENABLED  # bit 9 set
-        assert manual_def.decode("0000") == ManualMode.DISABLED
+        assert heater_mode_def.decode("2000") == HeaterMode.WINTER
+        assert heater_mode_def.decode("0000") == HeaterMode.OFF
+        assert heater_mode_def.decode("4000") == HeaterMode.PARTY
+        assert heater_mode_def.decode("8000") == HeaterMode.VACATION
+        assert heater_mode_def.decode("0002") == HeaterMode.MANUAL
         # manual_temperature: scaled by 10, 22.5 -> 225 -> 00e1 (le)
         assert temp_def.decode("e100") == 22.5
         # pressure: scaled by 100
@@ -93,15 +91,15 @@ class TestLoadRegistry:
 
     def test_map_encode_decode_roundtrip(self) -> None:
         """Map-type setting encode then decode yields same value."""
-        from kospel_cmi.registers.enums import ManualMode
+        from kospel_cmi.registers.enums import WaterHeaterEnabled
 
         registry = load_registry("kospel_cmi_standard")
-        manual_def = registry["is_manual_mode_enabled"]
+        water_heater_def = registry["is_water_heater_enabled"]
         # Encode ENABLED into base 0000
-        encoded = manual_def.encode(ManualMode.ENABLED, current_hex="0000")
+        encoded = water_heater_def.encode(WaterHeaterEnabled.ENABLED, current_hex="0000")
         assert encoded is not None
-        decoded = manual_def.decode(encoded)
-        assert decoded == ManualMode.ENABLED
+        decoded = water_heater_def.decode(encoded)
+        assert decoded == WaterHeaterEnabled.ENABLED
 
     def test_unknown_config_raises(self) -> None:
         """Unknown config name raises RegistryConfigError."""

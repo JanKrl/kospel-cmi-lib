@@ -45,7 +45,7 @@ flowchart TB
         Dec["decoders.py\nDecoder, decode_*"]
         Enc["encoders.py\nEncoder, encode_*"]
         Utils["utils.py\nreg_to_int, int_to_reg\nset_bit, get_bit"]
-        Enums["enums.py\nHeaterMode, ManualMode, ..."]
+        Enums["enums.py\nHeaterMode, WaterHeaterEnabled, ..."]
         Dec --> Utils
         Dec --> Enums
         Enc --> Utils
