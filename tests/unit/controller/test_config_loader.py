@@ -42,6 +42,13 @@ class TestLoadRegistry:
             "cwu_temperature_comfort",
             "pressure",
             "room_temperature",
+            "vacation_duration_hours",
+            "vacation_end_indefinite",
+            "vacation_end_minute",
+            "vacation_end_hour",
+            "vacation_end_day",
+            "vacation_end_month",
+            "vacation_end_year",
         }
         assert set(registry.keys()) == expected
 
@@ -71,7 +78,9 @@ class TestLoadRegistry:
         assert registry["pressure"].is_read_only
         assert registry["room_temperature"].is_read_only
         assert registry["is_pump_co_running"].is_read_only
+        assert registry["vacation_end_indefinite"].is_read_only
         assert not registry["heater_mode"].is_read_only
+        assert not registry["vacation_duration_hours"].is_read_only
 
     def test_map_encode_decode_roundtrip(self) -> None:
         """Map-type setting encode then decode yields same value."""

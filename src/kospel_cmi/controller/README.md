@@ -66,7 +66,7 @@ pressure:
 Registered in `registers/decoders.py` and `registers/encoders.py`:
 
 - **heater_mode**: Decode/encode HeaterMode enum (bits 3, 5)
-- **scaled_temp**: Temperature ×10
+- **scaled_x10**: Value ×10 (temperatures, durations, etc.)
 - **scaled_pressure**: Pressure ×100
 - **map**: Bit → enum (requires `true_value` and `false_value` as `EnumName.MEMBER`)
 

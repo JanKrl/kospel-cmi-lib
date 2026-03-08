@@ -14,8 +14,8 @@ Add the setting to `src/kospel_cmi/configs/kospel_cmi_standard.yaml` (or the con
 ```yaml
 new_setting:
   register: "0b8d"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 ```
 
 **Map type (bit → enum):**
@@ -40,7 +40,7 @@ If the setting uses a **new** decode/encode type, add it to the registries in `r
 - `ENCODER_REGISTRY` in `registers/encoders.py`
 - `ENUM_REGISTRY` in `registers/enums.py` (for new enums)
 
-For existing types (`scaled_temp`, `scaled_pressure`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
+For existing types (`scaled_x10`, `scaled_pressure`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
 
 ### 3. Add enum (if needed)
 

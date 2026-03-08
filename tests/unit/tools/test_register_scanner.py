@@ -31,7 +31,7 @@ class TestScanRegisterRange:
         assert reg0.register == "0b00"
         assert reg0.hex == "d700"
         assert reg0.raw_int == 215
-        assert reg0.scaled_temp == 21.5
+        assert reg0.scaled_x10 == 21.5
         assert reg0.scaled_pressure == 2.15
         assert reg0.bits == {i: ((215 >> i) & 1) != 0 for i in range(16)}
 
@@ -39,7 +39,7 @@ class TestScanRegisterRange:
         assert reg1.register == "0b01"
         assert reg1.hex == "a401"
         assert reg1.raw_int == 420
-        assert reg1.scaled_temp == 42.0
+        assert reg1.scaled_x10 == 42.0
         assert reg1.scaled_pressure == 4.2
 
     @pytest.mark.asyncio
@@ -50,7 +50,7 @@ class TestScanRegisterRange:
         reg = result.registers[0]
         assert reg.hex == "0000"
         assert reg.raw_int == 0
-        assert reg.scaled_temp == 0.0
+        assert reg.scaled_x10 == 0.0
         assert reg.scaled_pressure == 0.0
 
     @pytest.mark.asyncio
@@ -147,7 +147,7 @@ class TestSerializeScanResult:
         reg_data = parsed["registers"]["0b00"]
         assert reg_data["hex"] == "d700"
         assert reg_data["raw_int"] == 215
-        assert reg_data["scaled_temp"] == 21.5
+        assert reg_data["scaled_x10"] == 21.5
         assert reg_data["scaled_pressure"] == 2.15
         assert "bits" in reg_data
         assert reg_data["bits"][3] is False
@@ -173,7 +173,7 @@ class TestSerializeScanResult:
         result = await scan_register_range(backend, "0b00", 1)
         yaml_str = serialize_scan_result(result)
         parsed = yaml.safe_load(yaml_str)
-        assert parsed["registers"]["0b00"]["scaled_temp"] is None
+        assert parsed["registers"]["0b00"]["scaled_x10"] is None
         assert parsed["registers"]["0b00"]["scaled_pressure"] is None
 
 
@@ -217,6 +217,6 @@ class TestRegisterScannerWithYamlBackend:
         assert result.count == 256
         reg_31 = next(r for r in result.registers if r.register == "0b31")
         assert reg_31.hex == "e100"
-        assert reg_31.scaled_temp == 22.5
+        assert reg_31.scaled_x10 == 22.5
         reg_4e = next(r for r in result.registers if r.register == "0b4e")
         assert reg_4e.scaled_pressure == 5.0

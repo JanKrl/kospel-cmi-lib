@@ -94,6 +94,16 @@ Register values may vary per device type / version. Currently the project includ
 - `0b8a`: Heater mode priority (0=CO, 1=Heat Source, 2=Buffer)
 - `0b55`: Heater mode (bits 3,5 for summer/winter/off)
 
+### Vacation Mode Registers (tryb wakacje)
+
+- `0b59`: Duration in hours (scaled ×10, e.g. 79.5 = 79.5 hours)
+- `0b5a`: Indefinite flag (0xffff = "Do odwołania", until cancelled)
+- `0b6c`: End time — minute (0–59)
+- `0b6d`: End time — hour (0–23)
+- `0b6e`: End time — day (1–31)
+- `0b6f`: End time — month (1–12)
+- `0b70`: End time — year (2 digits, e.g. 26 = 2026)
+
 ## Implementation
 
 Register encoding/decoding is implemented in:

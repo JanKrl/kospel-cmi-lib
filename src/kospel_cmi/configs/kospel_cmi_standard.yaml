@@ -53,43 +53,82 @@ valve_position:
 
 manual_temperature:
   register: "0b8d"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_economy:
   register: "0b68"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort:
   register: "0b6a"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort_plus:
   register: "0b6b"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 room_temperature_comfort_minus:
   register: "0b69"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 cwu_temperature_economy:
   register: "0b66"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 cwu_temperature_comfort:
   register: "0b67"
-  decode: scaled_temp
-  encode: scaled_temp
+  decode: scaled_x10
+  encode: scaled_x10
 
 pressure:
   register: "0b8a"
   decode: scaled_pressure
 
 room_temperature:
+  register: "0b4b"
+  decode: scaled_x10
+
+# Tryb wakacje (vacation mode)
+# Czas trwania: 0b59 (scaled ×10, wartość w GODZINACH, np. 79.5 = 79.5 h)
+# scaled_x10: wartość ×10 w rejestrze (format jak temperatury)
+# Czas zakończenia: 0b6c-0b70 (minuta, godzina, dzień, miesiąc, rok)
+# 0b5a = 0xffff (-1) gdy "Do odwołania" (indefinite)
+vacation_duration_hours:
+  register: "0b59"
+  decode: scaled_x10
+  encode: scaled_x10
+
+vacation_end_indefinite:
+  register: "0b5a"
+  decode: raw_int
+
+vacation_end_minute:
+  register: "0b6c"
+  decode: raw_int
+  encode: raw_int
+
+vacation_end_hour:
   register: "0b6d"
-  decode: scaled_temp
+  decode: raw_int
+  encode: raw_int
+
+vacation_end_day:
+  register: "0b6e"
+  decode: raw_int
+  encode: raw_int
+
+vacation_end_month:
+  register: "0b6f"
+  decode: raw_int
+  encode: raw_int
+
+vacation_end_year:
+  register: "0b70"
+  decode: raw_int
+  encode: raw_int

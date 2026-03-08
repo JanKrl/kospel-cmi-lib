@@ -22,7 +22,7 @@ from .cli_common import (
     add_scan_arguments,
     backend_context,
 )
-from ..registers.decoders import decode_scaled_pressure, decode_scaled_temp
+from ..registers.decoders import decode_scaled_pressure, decode_scaled_x10
 from ..registers.utils import (
     get_bit,
     int_to_reg_address,
@@ -40,7 +40,7 @@ class RegisterEntryDict(TypedDict):
 
     hex: str
     raw_int: int
-    scaled_temp: Optional[float]
+    scaled_x10: Optional[float]
     scaled_pressure: Optional[float]
     bits: dict[int, bool]
 
@@ -75,7 +75,7 @@ class RegisterInterpretation:
     register: str
     hex: str
     raw_int: int
-    scaled_temp: Optional[float]
+    scaled_x10: Optional[float]
     scaled_pressure: Optional[float]
     bits: dict[int, bool]
 
@@ -92,14 +92,14 @@ class RegisterScanResult:
 def _interpret_register(register: str, hex_val: str) -> RegisterInterpretation:
     """Apply parsers to a single register value."""
     raw_int = reg_to_int(hex_val)
-    scaled_temp = decode_scaled_temp(hex_val)
+    scaled_x10 = decode_scaled_x10(hex_val)
     scaled_pressure = decode_scaled_pressure(hex_val)
     bits = {i: get_bit(raw_int, i) for i in range(16)}
     return RegisterInterpretation(
         register=register,
         hex=hex_val,
         raw_int=raw_int,
-        scaled_temp=scaled_temp,
+        scaled_x10=scaled_x10,
         scaled_pressure=scaled_pressure,
         bits=bits,
     )
@@ -160,14 +160,14 @@ def format_register_row(reg: RegisterInterpretation, first_col: str) -> str:
     Returns:
         Formatted row string.
     """
-    temp_str = f"{reg.scaled_temp:.1f}" if reg.scaled_temp is not None else "—"
+    x10_str = f"{reg.scaled_x10:.1f}" if reg.scaled_x10 is not None else "—"
     press_str = f"{reg.scaled_pressure:.2f}" if reg.scaled_pressure is not None else "—"
     # ● = set, · = clear (visually scannable in large tables)
     bits_chars = "".join(
         "\u25CF" if reg.bits[i] else "\u00B7" for i in range(15, -1, -1)
     )
     bits_str = " ".join(bits_chars[i : i + 4] for i in range(0, 16, 4))
-    return f"{first_col} {reg.hex:<6} {reg.raw_int:>7} {temp_str:>6} {press_str:>6}  {bits_str}"
+    return f"{first_col} {reg.hex:<6} {reg.raw_int:>7} {x10_str:>6} {press_str:>6}  {bits_str}"
 
 
 def format_scan_result(
@@ -211,7 +211,7 @@ def format_scan_result(
         lines.append("(no registers)")
         return "\n".join(lines)
 
-    header = f"{'Register':<8} {'Hex':<6} {'Int':>7} {'°C':>6} {'bar':>6}  Bits"
+    header = f"{'Register':<8} {'Hex':<6} {'Int':>7} {'×10':>6} {'bar':>6}  Bits"
     separator = (
         "-" * 8
         + " "
@@ -251,7 +251,7 @@ def _result_to_dict(
         reg_data: RegisterEntryDict = {
             "hex": reg.hex,
             "raw_int": reg.raw_int,
-            "scaled_temp": reg.scaled_temp,
+            "scaled_x10": reg.scaled_x10,
             "scaled_pressure": reg.scaled_pressure,
             "bits": dict(sorted(reg.bits.items())),
         }

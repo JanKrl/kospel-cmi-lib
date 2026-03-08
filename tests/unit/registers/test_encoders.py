@@ -7,7 +7,8 @@ from kospel_cmi.registers.encoders import (
     encode_heater_mode,
     encode_bit_boolean,
     encode_map,
-    encode_scaled_temp,
+    encode_raw_int,
+    encode_scaled_x10,
     encode_scaled_pressure,
 )
 from kospel_cmi.registers.enums import HeaterMode, ManualMode, WaterHeaterEnabled
@@ -151,8 +152,8 @@ class TestEncodeMap:
         assert encoder("invalid", bit_index=0, current_hex="0000") is None
 
 
-class TestEncodeScaledTemp:
-    """Tests for encode_scaled_temp (value * 10)."""
+class TestEncodeScaledX10:
+    """Tests for encode_scaled_x10 (value * 10)."""
 
     @pytest.mark.parametrize(
         ("value", "expected_hex_int"),
@@ -162,16 +163,16 @@ class TestEncodeScaledTemp:
             (10.0, 100),
         ],
     )
-    def test_encodes_temperature(self, value: float, expected_hex_int: int) -> None:
-        """Temperature is scaled by 10 and encoded as register value."""
-        result = encode_scaled_temp(value, bit_index=0)  # bit_index ignored
+    def test_encodes_value(self, value: float, expected_hex_int: int) -> None:
+        """Value is scaled by 10 and encoded as register value."""
+        result = encode_scaled_x10(value, bit_index=0)  # bit_index ignored
         assert result is not None
         assert reg_to_int(result) == expected_hex_int
 
     def test_invalid_returns_none(self) -> None:
         """Non-numeric value returns None."""
         # value * 10 will raise for non-numeric; encoder catches Exception
-        assert encode_scaled_temp("not a number", bit_index=0) is None  # type: ignore[arg-type]
+        assert encode_scaled_x10("not a number", bit_index=0) is None  # type: ignore[arg-type]
 
 
 class TestEncodeScaledPressure:
@@ -194,3 +195,25 @@ class TestEncodeScaledPressure:
     def test_invalid_returns_none(self) -> None:
         """Non-numeric value returns None."""
         assert encode_scaled_pressure("not a number", bit_index=0) is None  # type: ignore[arg-type]
+
+
+class TestEncodeRawInt:
+    """Tests for encode_raw_int (raw 16-bit signed integer)."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected_hex"),
+        [
+            (0, "0000"),
+            (1, "0100"),
+            (-1, "ffff"),
+            (795, "1b03"),
+        ],
+    )
+    def test_encodes_int(self, value: int, expected_hex: str) -> None:
+        """Integer encodes to correct hex string."""
+        result = encode_raw_int(value, bit_index=0)
+        assert result == expected_hex
+
+    def test_invalid_returns_none(self) -> None:
+        """Non-integer value returns None."""
+        assert encode_raw_int("not an int", bit_index=0) is None  # type: ignore[arg-type]

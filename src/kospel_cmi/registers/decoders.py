@@ -104,10 +104,13 @@ def decode_bit_boolean(hex_val: str, bit_index: Optional[int] = None) -> Optiona
         return None
 
 
-def decode_scaled_temp(
+def decode_scaled_x10(
     hex_val: str, bit_index: Optional[int] = None
 ) -> Optional[float]:
-    """Decode temperature value (scaled by 10).
+    """Decode value scaled by 10 (stored as value × 10 in register).
+
+    Use for temperatures (°C), durations (hours), and any value with 0.1 precision.
+    E.g. 22.5°C → 225 → \"00e1\", 79.5 h → 795 → \"1b03\".
 
     Args:
         hex_val: Hex string from register
@@ -142,10 +145,32 @@ def decode_scaled_pressure(
         return None
 
 
+def decode_raw_int(
+    hex_val: str, bit_index: Optional[int] = None
+) -> Optional[int]:
+    """Decode raw 16-bit signed integer from register.
+
+    Use for registers that store integer values (e.g. duration, timestamps).
+    Value 0xffff (-1) often means \"indefinite\" or \"until cancelled\".
+
+    Args:
+        hex_val: Hex string from register
+        bit_index: Ignored
+    """
+    try:
+        if hex_val is None or len(hex_val) != 4:
+            return None
+        int(hex_val, 16)
+        return reg_to_int(hex_val)
+    except (ValueError, TypeError):
+        return None
+
+
 # Registry for config loader: maps YAML decoder names to decoder functions.
 # "map" is special—built from params at load time via decode_map().
 DECODER_REGISTRY: dict[str, Callable[..., Optional[object]]] = {
     "heater_mode": decode_heater_mode,
-    "scaled_temp": decode_scaled_temp,
+    "scaled_x10": decode_scaled_x10,
     "scaled_pressure": decode_scaled_pressure,
+    "raw_int": decode_raw_int,
 }

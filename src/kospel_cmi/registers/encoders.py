@@ -182,15 +182,17 @@ def encode_map(
     return _encoder
 
 
-def encode_scaled_temp(
+def encode_scaled_x10(
     value: float,
     bit_index: Optional[int],
     current_hex: Optional[str] = None,
 ) -> Optional[str]:
-    """Encode temperature value (scaled by 10) to hex string.
+    """Encode value scaled by 10 (value × 10 stored in register).
+
+    Use for temperatures (°C), durations (hours), and any value with 0.1 precision.
 
     Args:
-        value: Temperature in Celsius
+        value: Float value (e.g. 22.5°C, 79.5 h)
         bit_index: Ignored
         current_hex: Ignored (not needed for full register write)
 
@@ -198,10 +200,10 @@ def encode_scaled_temp(
         Hex string to write
     """
     try:
-        scaled_temp = int(value * 10)
-        return int_to_reg(scaled_temp)
+        scaled_val = int(value * 10)
+        return int_to_reg(scaled_val)
     except Exception as e:
-        logger.error(f"Error encoding scaled temperature: {e}")
+        logger.error(f"Error encoding scaled_x10: {e}")
         return None
 
 
@@ -228,9 +230,38 @@ def encode_scaled_pressure(
         return None
 
 
+def encode_raw_int(
+    value: int,
+    bit_index: Optional[int],
+    current_hex: Optional[str] = None,
+) -> Optional[str]:
+    """Encode raw 16-bit signed integer to hex string.
+
+    Use for registers that store integer values (e.g. duration, timestamps).
+    Value -1 (0xffff) often means \"indefinite\" or \"until cancelled\".
+
+    Args:
+        value: Integer value (-32768 to 32767)
+        bit_index: Ignored
+        current_hex: Ignored (not needed for full register write)
+
+    Returns:
+        Hex string to write
+    """
+    if not isinstance(value, int):
+        logger.error(f"Error encoding raw int: expected int, got {type(value).__name__}")
+        return None
+    try:
+        return int_to_reg(value)
+    except Exception as e:
+        logger.error(f"Error encoding raw int: {e}")
+        return None
+
+
 # Registry for config loader: maps YAML encoder names to encoder functions.
 # "map" is special—built from params at load time via encode_map().
 ENCODER_REGISTRY: dict[str, Callable[..., Optional[str]]] = {
     "heater_mode": encode_heater_mode,
-    "scaled_temp": encode_scaled_temp,
+    "scaled_x10": encode_scaled_x10,
+    "raw_int": encode_raw_int,
 }

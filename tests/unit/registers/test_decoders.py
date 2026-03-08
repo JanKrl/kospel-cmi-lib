@@ -6,7 +6,8 @@ from kospel_cmi.registers.decoders import (
     decode_heater_mode,
     decode_bit_boolean,
     decode_map,
-    decode_scaled_temp,
+    decode_raw_int,
+    decode_scaled_x10,
     decode_scaled_pressure,
 )
 from kospel_cmi.registers.enums import HeaterMode, ManualMode
@@ -100,8 +101,8 @@ class TestDecodeMap:
         assert decoder("", 0) is None
 
 
-class TestDecodeScaledTemp:
-    """Tests for decode_scaled_temp (value / 10)."""
+class TestDecodeScaledX10:
+    """Tests for decode_scaled_x10 (value / 10)."""
 
     @pytest.mark.parametrize(
         ("hex_val", "expected"),
@@ -111,11 +112,11 @@ class TestDecodeScaledTemp:
             ("6400", 10.0),  # 100 -> 10.0
         ],
     )
-    def test_valid_hex_returns_temperature(
+    def test_valid_hex_returns_value(
         self, hex_val: str, expected: float
     ) -> None:
-        """Valid 4-char hex decodes to temperature (value/10)."""
-        assert decode_scaled_temp(hex_val) == pytest.approx(expected)
+        """Valid 4-char hex decodes to value (value/10)."""
+        assert decode_scaled_x10(hex_val) == pytest.approx(expected)
 
     @pytest.mark.parametrize(
         "invalid",
@@ -123,7 +124,7 @@ class TestDecodeScaledTemp:
     )
     def test_invalid_hex_returns_none(self, invalid: str) -> None:
         """Invalid hex returns None."""
-        assert decode_scaled_temp(invalid) is None
+        assert decode_scaled_x10(invalid) is None
 
 
 class TestDecodeScaledPressure:
@@ -150,3 +151,29 @@ class TestDecodeScaledPressure:
     def test_invalid_hex_returns_none(self, invalid: str) -> None:
         """Invalid hex returns None."""
         assert decode_scaled_pressure(invalid) is None
+
+
+class TestDecodeRawInt:
+    """Tests for decode_raw_int (raw 16-bit signed integer)."""
+
+    @pytest.mark.parametrize(
+        ("hex_val", "expected"),
+        [
+            ("0000", 0),
+            ("0100", 1),
+            ("ffff", -1),
+            ("1b03", 795),
+            ("efff", -17),
+        ],
+    )
+    def test_valid_hex_returns_int(self, hex_val: str, expected: int) -> None:
+        """Valid 4-char hex decodes to raw signed integer."""
+        assert decode_raw_int(hex_val) == expected
+
+    @pytest.mark.parametrize(
+        "invalid",
+        [None, "", "00", "00000", "ghij"],
+    )
+    def test_invalid_hex_returns_none(self, invalid: str) -> None:
+        """Invalid hex returns None."""
+        assert decode_raw_int(invalid) is None
