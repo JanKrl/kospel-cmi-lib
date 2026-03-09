@@ -43,9 +43,9 @@ def encode_heater_mode(
     Heater mode is stored in register 0b55 using bits 3, 5, 6, 7, 9:
     - SUMMER: bit 3=1, others 0
     - WINTER: bit 5=1, others 0
-    - PARTY: bit 6=1, others 0
-    - VACATION: bit 7=1, others 0
-    - MANUAL: bit 9=1, others 0
+    - PARTY: bit 5=1 AND bit 6=1 (sub-mode of winter, per UI)
+    - VACATION: bit 5=1 AND bit 7=1 (sub-mode of winter, per UI)
+    - MANUAL: bit 5=1 AND bit 9=1 (sub-mode of winter, per UI)
     - OFF: all mode bits 0
 
     Uses read-modify-write pattern to preserve other flag bits in the register.
@@ -93,10 +93,14 @@ def encode_heater_mode(
         elif value == HeaterMode.WINTER:
             new_int = set_bit(new_int, WINTER_BIT, True)
         elif value == HeaterMode.PARTY:
+            new_int = set_bit(new_int, WINTER_BIT, True)
             new_int = set_bit(new_int, PARTY_BIT, True)
         elif value == HeaterMode.VACATION:
+            new_int = set_bit(new_int, WINTER_BIT, True)
             new_int = set_bit(new_int, VACATION_BIT, True)
         elif value == HeaterMode.MANUAL:
+            # Manual is sub-mode of winter: UI requires both bit 5 and bit 9
+            new_int = set_bit(new_int, WINTER_BIT, True)
             new_int = set_bit(new_int, MANUAL_BIT, True)
         elif value == HeaterMode.OFF:
             pass  # all bits already cleared

@@ -300,7 +300,8 @@ class HeaterController:
     async def set_manual_heating(self, temperature: float) -> bool:
         """Set manual heater mode and target temperature.
 
-        room_mode=64 is injected in save() when heater_mode=MANUAL.
+        room_mode=ROOM_MODE_MANUAL is injected in save() when heater_mode=MANUAL.
+        Writes manual_temperature (0b8d) and heater_mode (0b55) only — matches UI.
 
         Args:
             temperature: Target temperature in °C (e.g. 22.0)
