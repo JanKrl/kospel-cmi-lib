@@ -31,8 +31,8 @@ class TestLoadRegistry:
             "room_mode",
             "cwu_mode",
             "is_water_heater_enabled",
-            "is_pump_co_running",
-            "is_pump_circulation_running",
+            "is_co_heating_active",
+            "is_cwu_heating_active",
             "valve_position",
             "manual_temperature",
             "room_temperature_economy",
@@ -88,7 +88,7 @@ class TestLoadRegistry:
         assert registry["pressure"].is_read_only
         assert registry["room_temperature"].is_read_only
         assert registry["water_current_temperature"].is_read_only
-        assert registry["is_pump_co_running"].is_read_only
+        assert registry["is_co_heating_active"].is_read_only
         assert not registry["heater_mode"].is_read_only
 
     def test_map_encode_decode_roundtrip(self) -> None:
