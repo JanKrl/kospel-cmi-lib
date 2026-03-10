@@ -9,7 +9,14 @@ import logging
 from typing import Dict, Any
 
 from ..kospel.backend import RegisterBackend
-from ..registers.enums import CwuMode, HeaterMode, ROOM_MODE_MANUAL
+from ..registers.enums import (
+    CwuMode,
+    HeaterMode,
+    HeatingCircuitActive,
+    HeatingStatus,
+    ROOM_MODE_MANUAL,
+    WaterHeaterEnabled,
+)
 from .registry import SettingDefinition
 
 logger = logging.getLogger(__name__)
@@ -130,11 +137,60 @@ class HeaterController:
         self._pending_writes.clear()
         logger.debug(f"Decoded {len(self._settings)} settings")
 
+    def _compute_co_heating_status(self) -> HeatingStatus:
+        """Compute CO heating status from heater_mode, is_co_heating_active, power.
+
+        None values (e.g. register not loaded) are treated as inactive/disabled.
+        """
+        heater_mode = self._settings.get("heater_mode")
+        co_active = self._settings.get("is_co_heating_active")
+        power = self._settings.get("power")
+
+        if heater_mode != HeaterMode.WINTER:
+            return HeatingStatus.DISABLED
+
+        if co_active != HeatingCircuitActive.ACTIVE:
+            return HeatingStatus.IDLE
+
+        if power is not None and power > 0:
+            return HeatingStatus.RUNNING
+        return HeatingStatus.IDLE
+
+    def _compute_cwu_heating_status(self) -> HeatingStatus:
+        """Compute CWU heating status from heater_mode, is_water_heater_enabled, is_cwu_heating_active, power.
+
+        None values (e.g. register not loaded) are treated as inactive/disabled.
+        """
+        heater_mode = self._settings.get("heater_mode")
+        water_enabled = self._settings.get("is_water_heater_enabled")
+        cwu_active = self._settings.get("is_cwu_heating_active")
+        power = self._settings.get("power")
+
+        if heater_mode == HeaterMode.SUMMER:
+            return (
+                HeatingStatus.RUNNING
+                if cwu_active == HeatingCircuitActive.ACTIVE
+                else HeatingStatus.IDLE
+            )
+
+        if heater_mode != HeaterMode.WINTER:
+            return HeatingStatus.DISABLED
+
+        if water_enabled != WaterHeaterEnabled.ENABLED:
+            return HeatingStatus.DISABLED
+
+        if cwu_active != HeatingCircuitActive.ACTIVE:
+            return HeatingStatus.IDLE
+
+        if power is not None and power > 0:
+            return HeatingStatus.RUNNING
+        return HeatingStatus.IDLE
+
     def __getattr__(self, name: str) -> Any:
         """Dynamic property access for settings.
 
         Args:
-            name: Setting name (must exist in registry)
+            name: Setting name (must exist in registry or be computed)
 
         Returns:
             Setting value
@@ -148,11 +204,21 @@ class HeaterController:
                 f"'{self.__class__.__name__}' object has no attribute '{name}'"
             )
 
+        # Handle computed properties
+        if name == "co_heating_status":
+            return self._compute_co_heating_status()
+        if name == "cwu_heating_status":
+            return self._compute_cwu_heating_status()
+
         # Check if setting exists in registry
         if name not in self._registry:
+            available = sorted(self._registry.keys()) + [
+                "co_heating_status",
+                "cwu_heating_status",
+            ]
             raise AttributeError(
                 f"'{self.__class__.__name__}' object has no attribute '{name}'. "
-                f"Available settings: {', '.join(sorted(self._registry.keys()))}"
+                f"Available settings: {', '.join(sorted(available))}"
             )
 
         # Return value from _settings (may be None if not loaded)

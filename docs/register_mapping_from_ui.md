@@ -39,6 +39,8 @@ Interfejs odświeża ekran startowy odczytem 30 rejestrów od 0b2f. Poniżej map
 | 3 | Wejście NA |
 | 4 | Wejście RP |
 | 6 | Wejście FUN |
+| 7 | Obwód CO aktywny (ikona radiatora) |
+| 8 | Obwód CWU aktywny (ikona kranu) |
 
 ## Rejestr 0b55 – flagi systemowe (bity)
 

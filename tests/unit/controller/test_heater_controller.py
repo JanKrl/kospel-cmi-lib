@@ -4,7 +4,7 @@ import pytest
 
 from kospel_cmi.controller.api import HeaterController
 from kospel_cmi.controller.registry import load_registry
-from kospel_cmi.registers.enums import CwuMode, HeaterMode
+from kospel_cmi.registers.enums import CwuMode, HeaterMode, HeatingStatus
 
 REGISTRY = load_registry("kospel_cmi_standard")
 
@@ -230,3 +230,84 @@ class TestHeaterControllerWithMockBackend:
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b66"}
         assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian
+
+    @pytest.mark.asyncio
+    async def test_co_heating_status_summer_disabled(self) -> None:
+        """In summer mode, CO is always DISABLED."""
+        backend = MockRegisterBackend(
+            {"0b55": "0800", "0b51": "0000", "0b46": "0000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.co_heating_status == HeatingStatus.DISABLED
+
+    @pytest.mark.asyncio
+    async def test_co_heating_status_winter_running(self) -> None:
+        """In winter mode with co=1 and power>0, CO is RUNNING."""
+        backend = MockRegisterBackend(
+            {"0b55": "2000", "0b51": "8000", "0b46": "5000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.co_heating_status == HeatingStatus.RUNNING
+
+    @pytest.mark.asyncio
+    async def test_co_heating_status_winter_idle(self) -> None:
+        """In winter mode with co=1 and power=0, CO is IDLE."""
+        backend = MockRegisterBackend(
+            {"0b55": "2000", "0b51": "8000", "0b46": "0000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.co_heating_status == HeatingStatus.IDLE
+
+    @pytest.mark.asyncio
+    async def test_cwu_heating_status_summer_running(self) -> None:
+        """In summer mode with cwu=1, CWU is RUNNING (no power check)."""
+        backend = MockRegisterBackend(
+            {"0b55": "0800", "0b51": "0001", "0b46": "0000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.cwu_heating_status == HeatingStatus.RUNNING
+
+    @pytest.mark.asyncio
+    async def test_cwu_heating_status_summer_idle(self) -> None:
+        """In summer mode with cwu=0, CWU is IDLE."""
+        backend = MockRegisterBackend(
+            {"0b55": "0800", "0b51": "0000", "0b46": "0000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.cwu_heating_status == HeatingStatus.IDLE
+
+    @pytest.mark.asyncio
+    async def test_cwu_heating_status_winter_running(self) -> None:
+        """In winter with water enabled, cwu=1, power>0, CWU is RUNNING."""
+        backend = MockRegisterBackend(
+            {"0b55": "3000", "0b51": "0001", "0b46": "5000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.cwu_heating_status == HeatingStatus.RUNNING
+
+    @pytest.mark.asyncio
+    async def test_cwu_heating_status_winter_disabled_when_water_off(self) -> None:
+        """In winter with water disabled, CWU is DISABLED."""
+        backend = MockRegisterBackend(
+            {"0b55": "2000", "0b51": "0001", "0b46": "5000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.cwu_heating_status == HeatingStatus.DISABLED
+
+    @pytest.mark.asyncio
+    async def test_co_cwu_heating_status_other_modes_disabled(self) -> None:
+        """In OFF/PARTY/VACATION/MANUAL, both CO and CWU are DISABLED."""
+        backend = MockRegisterBackend(
+            {"0b55": "0000", "0b51": "8001", "0b46": "5000"}
+        )
+        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.co_heating_status == HeatingStatus.DISABLED
+        assert controller.cwu_heating_status == HeatingStatus.DISABLED

@@ -47,6 +47,8 @@ Some registers use individual bits as flags (specific register addresses may var
 - Bit 0: Pump CO running
 - Bit 1: Pump circulation running
 - Bit 2: Valve position (0=CO, 1=DHW)
+- Bit 7: CO heating circuit active (radiator icon)
+- Bit 8: CWU heating circuit active (tap icon)
 
 ## Example Register Values
 

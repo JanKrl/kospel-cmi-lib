@@ -25,21 +25,21 @@ is_water_heater_enabled:
     true_value: WaterHeaterEnabled.ENABLED
     false_value: WaterHeaterEnabled.DISABLED
 
-is_pump_co_running:
+is_co_heating_active:
   register: "0b51"
-  bit_index: 0
+  bit_index: 7
   decode:
     type: map
-    true_value: PumpStatus.RUNNING
-    false_value: PumpStatus.IDLE
+    true_value: HeatingCircuitActive.ACTIVE
+    false_value: HeatingCircuitActive.INACTIVE
 
-is_pump_circulation_running:
+is_cwu_heating_active:
   register: "0b51"
-  bit_index: 1
+  bit_index: 8
   decode:
     type: map
-    true_value: PumpStatus.RUNNING
-    false_value: PumpStatus.IDLE
+    true_value: HeatingCircuitActive.ACTIVE
+    false_value: HeatingCircuitActive.INACTIVE
 
 valve_position:
   register: "0b51"

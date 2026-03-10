@@ -31,11 +31,19 @@ class ValvePosition(Enum):
     CO = "CO"  # Central Heating
 
 
-class PumpStatus(Enum):
-    """Pump status."""
+class HeatingStatus(Enum):
+    """Heating circuit status matching manufacturer UI icons."""
 
-    RUNNING = "Running"
-    IDLE = "Idle"
+    RUNNING = "running"  # Red: circuit active, power > 0 (or cwu in summer)
+    IDLE = "idle"  # Green: circuit active, not heating
+    DISABLED = "disabled"  # Grey: circuit inactive
+
+
+class HeatingCircuitActive(Enum):
+    """Raw bit value for heating circuit active (0b51 bits 7, 8)."""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 
 class CwuMode(IntEnum):
@@ -61,5 +69,6 @@ ENUM_REGISTRY: dict[str, type[Enum]] = {
     "HeaterMode": HeaterMode,
     "WaterHeaterEnabled": WaterHeaterEnabled,
     "ValvePosition": ValvePosition,
-    "PumpStatus": PumpStatus,
+    "HeatingStatus": HeatingStatus,
+    "HeatingCircuitActive": HeatingCircuitActive,
 }
