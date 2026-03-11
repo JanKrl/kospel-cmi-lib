@@ -11,7 +11,7 @@
 ```mermaid
 flowchart TB
     subgraph External["External"]
-        Consumer["Consumer\n(Home Assistant / CLI / Tests)"]
+        Consumer["Consumer\n(Home Assistant / CLI Tools / Tests)"]
         Device["Kospel C.MI Device\n(HTTP API)"]
         YamlFile["YAML state file\n(path passed as param)"]
     end
@@ -40,6 +40,10 @@ flowchart TB
         API["read_register, read_registers\nwrite_register\nno write_flag_bit"]
     end
 
+    subgraph DiscoveryMod["Discovery (discovery.py)"]
+        Discovery["probe_device, discover_devices\nGET /api/dev, GET /api/dev/<id>/info"]
+    end
+
     subgraph Registers["Layer: Registers (Encoding/Decoding)"]
         direction TB
         Dec["decoders.py\nDecoder, decode_*"]
@@ -53,6 +57,8 @@ flowchart TB
     end
 
     Consumer -->|"refresh(), save(), attr access"| HC
+    Consumer -->|"probe_device, discover_devices"| Discovery
+    Discovery -->|"session, host"| Device
     HC -->|"decode/encode via registry"| Reg
     SD -->|"Decoder, Encoder"| Dec
     SD -->|"Decoder, Encoder"| Enc
@@ -80,7 +86,8 @@ flowchart LR
     subgraph L2["kospel"]
         backend["backend.py\nRegisterBackend, HttpBackend\nYamlBackend, write_flag_bit"]
         kapi["api.py\nHTTP only"]
-        state["simulator.py\nread_register, read_registers\nwrite_register\n(state_file)"]
+        simulator["simulator.py\nread_register, read_registers\nwrite_register\n(state_file)"]
+        discovery["discovery.py\nprobe_device, discover_devices"]
     end
     subgraph L3["registers"]
         dec["decoders"]
@@ -88,16 +95,24 @@ flowchart LR
         enums["enums"]
         utils["utils"]
     end
+    subgraph L4["tools"]
+        discoverCli["discover\nkospel-discover"]
+        regScanner["register_scanner\nkospel-scan-registers"]
+        liveScanner["live_scanner\nkospel-scan-live"]
+    end
     api --> backend
     api --> registry
     registry --> dec
     registry --> enc
     registry --> enums
     backend --> kapi
-    backend --> state
+    backend --> simulator
     backend --> utils
     kapi --> utils
-    state --> utils
+    simulator --> utils
+    discoverCli --> discovery
+    regScanner --> backend
+    liveScanner --> backend
 ```
 
 %% =============================================================================
@@ -116,8 +131,10 @@ flowchart LR
 - **Controller** (`controller/api.py`): `HeaterController(backend: RegisterBackend, registry: Dict[str, SettingDefinition])`. Registry from `load_registry(name)`; configs in `configs/*.yaml`. Uses only `backend.read_register`, `backend.read_registers`, `backend.write_register` (and if needed, a standalone `write_flag_bit(backend, ...)`).
 - **RegisterBackend Protocol** (`kospel/backend.py`): methods `read_register(register) -> Optional[str]`, `read_registers(start_register, count) -> Dict[str, str]`, `write_register(register, hex_value) -> bool`. No transport-specific parameters.
 - **HttpRegisterBackend** (`kospel/backend.py`): constructor `(session: aiohttp.ClientSession, api_base_url: str)`. Implements Protocol by calling the HTTP-only functions from `kospel/api.py` (no decorators, no `simulation_mode`).
-- **YamlRegisterBackend** (`kospel/backend.py`): constructor `(state_file: str)` — path required, no environment variable for file location. Implements Protocol using in-memory state and YAML load/save (logic from current `simulator.py` / `SimulatorRegisterState`).
+- **YamlRegisterBackend** (`kospel/backend.py`): constructor `(state_file: str)` — path required, no environment variable for file location. Delegates to `simulator.py` (function module) for YAML load/save; no separate "state" class.
 - **write_flag_bit**: Single implementation only (e.g. in `kospel/backend.py`). Signature: accepts a `RegisterBackend` plus `register`, `bit_index`, `state`; implements read-modify-write via `backend.read_register` and `backend.write_register` using `reg_to_int` / `set_bit` / `int_to_reg`. Not a method of the Protocol; not implemented in `kospel/api.py` or duplicated in backends.
 - **kospel/api.py**: Contains only HTTP logic: `read_register(session, api_base_url, register)`, `read_registers(...)`, `write_register(...)`. Remove `@with_simulator`, `simulation_mode` parameter, and `write_flag_bit` from this module.
 - **kospel/simulator.py**: Function module: `read_register(state_file, register)`, `read_registers(state_file, ...)`, `write_register(state_file, ...)`. No classes; operations load/save the YAML file. Mirrors the structure of `api.py` (functions with “connection” param first).
 - **Configuration**: No environment variables for simulation or YAML path. Consumer passes `api_base_url` for HTTP or `state_file` for YAML when constructing the backend.
+- **Discovery** (`kospel/discovery.py`): `probe_device`, `discover_devices` — no device_id required; uses `GET /api/dev` and `GET /api/dev/<id>/info` to find devices and obtain `api_base_url`.
+- **Tools** (`tools/`): CLI entry points (`kospel-discover`, `kospel-scan-registers`, `kospel-scan-live`) and Python API; use `RegisterBackend` for register access (scanner tools) or `discovery` module for device discovery.

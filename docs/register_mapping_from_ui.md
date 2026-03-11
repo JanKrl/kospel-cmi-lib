@@ -1,3 +1,9 @@
+# Kospel C.MI Register Mapping — UI Analysis
+
+> **Language:** This document is in Polish. It was generated from analysis of the manufacturer's web UI JavaScript. It provides a reference mapping of registers to UI variables and meanings. For the library's register implementation, see [registers/README.md](../src/kospel_cmi/registers/README.md).
+
+---
+
 # Mapowanie rejestrów Kospel C.MI – analiza interfejsu UI
 
 Dokument wygenerowany na podstawie analizy kodu JavaScript interfejsu webowego Kospel (http://192.168.101.49/65).
