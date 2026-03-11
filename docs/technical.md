@@ -17,7 +17,7 @@ The Kospel Heater Control Library is a Python-based system for controlling Kospe
 
 ### Layered Architecture
 
-The system follows a strict 4-layer architecture with clear boundaries:
+The system follows a strict 3-layer architecture with clear boundaries:
 
 ```
 ┌─────────────────────────────────────┐
@@ -291,6 +291,8 @@ Each call loads from or saves to the YAML file. `YamlRegisterBackend` in `backen
 
 
 ## Import Rules: Relative Imports Only
+
+This section applies when **embedding or vendoring** this library inside a Home Assistant custom integration. The integration's own code must use relative imports within its package. The kospel-cmi-lib itself uses normal absolute imports (e.g. `from kospel_cmi import probe_device`).
 
 **Critical Requirement**: All imports within a Home Assistant custom integration **must** use relative imports (with `.` notation). 
 

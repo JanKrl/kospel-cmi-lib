@@ -2,6 +2,8 @@
 
 Python client for the Kospel C.MI electric heater HTTP API.
 
+This library provides a Python client for controlling Kospel C.MI electric heaters via their HTTP API. It is designed for integration with Home Assistant and other automation systems, and supports device discovery, register-based control, and offline development with a YAML simulator.
+
 ## Features
 
 - **Async-first**: Built on `asyncio` and `aiohttp` for non-blocking I/O
@@ -10,6 +12,15 @@ Python client for the Kospel C.MI electric heater HTTP API.
 - **Simulator-capable**: Full simulator for offline development and testing (no hardware required)
 - **Protocol-based**: Decoder/encoder interfaces via Python `Protocol` types
 - **Device discovery**: `probe_device()` and `discover_devices()` to find Kospel devices on the network (no device_id required)
+
+## Implemented Features
+
+- Heater mode control (OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL)
+- CWU (water) mode and temperatures (economy, comfort)
+- Manual heating temperature
+- Device discovery (CLI `kospel-discover` + Python API)
+- Register scanner and live scanner tools (`kospel-scan-registers`, `kospel-scan-live`)
+- YAML backend for offline testing (no hardware required)
 
 ## Installation
 
@@ -20,6 +31,12 @@ uv add kospel-cmi-lib
 # With pip
 pip install kospel-cmi-lib
 ```
+
+## Quick Start
+
+1. **Install**: `uv add kospel-cmi-lib` or `pip install kospel-cmi-lib`
+2. **Discover device**: Run `kospel-discover` or use `probe_device(session, "192.168.x.x")` to get `api_base_url`
+3. **Connect and read**: Create `HeaterController` with `HttpRegisterBackend(session, api_base_url)` and call `refresh()`
 
 ## Usage
 
@@ -141,14 +158,22 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 - **[kospel/](src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
 - **[controller/](src/kospel_cmi/controller/README.md)** - YAML registry config and load_registry
+- **[configs/](src/kospel_cmi/configs/README.md)** - Registry config files
 - **[tools/](src/kospel_cmi/tools/README.md)** - Register scanner and live scanner for reverse-engineering
 
 ### Project Documentation
 
+- **[Documentation Index](docs/README.md)** - Overview of all docs and suggested reading order
 - **[Development Guide](docs/development.md)** - Contributing and extending the library
 - **[Architecture](docs/architecture.md)** - System design, layers, components, and data flow
 - **[Technical Specs](docs/technical.md)** - Implementation details, data formats, protocols, testing, and coding standards
 
+
+## Known Limitations
+
+- No authentication (assumes local network access)
+- HTTP only (no HTTPS)
+- Single device config (`kospel_cmi_standard`) — more variants planned for v2
 
 ## Roadmap
 
