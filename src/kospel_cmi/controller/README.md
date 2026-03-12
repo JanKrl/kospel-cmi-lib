@@ -19,6 +19,17 @@ controller = HeaterController(backend=backend, registry=registry)
 
 All config files live in `configs/`. To add a new device variant, create a new YAML file (e.g. `kospel_cmi_pro.yaml`) and load it with `load_registry("kospel_cmi_pro")`.
 
+### Async Runtime Note (Home Assistant, asyncio apps)
+
+When called inside a running event loop, `load_registry()` performs blocking file
+I/O. Use `async_load_registry()` instead:
+
+```python
+from kospel_cmi.controller.registry import async_load_registry
+
+registry = await async_load_registry("kospel_cmi_standard")
+```
+
 ## YAML Schema
 
 **Simple decoder (no params):**

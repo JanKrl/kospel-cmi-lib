@@ -4,10 +4,11 @@ Registry of the heater registers. It contains list of known registers and inform
 Settings are loaded from YAML config files via load_registry(name). Configs live in the package configs/ directory.
 """
 
+import asyncio
+from dataclasses import dataclass
 import logging
 from importlib import resources
 from pathlib import Path
-from dataclasses import dataclass
 from typing import Any, Callable, Optional, Union
 
 import yaml
@@ -231,3 +232,28 @@ def load_registry(
             ) from e
 
     return result
+
+
+async def async_load_registry(
+    name: str,
+    config_dir: Optional[Path] = None,
+) -> dict[str, SettingDefinition]:
+    """Load settings registry without blocking the event loop.
+
+    This helper is intended for async runtimes (for example Home Assistant setup
+    code) where synchronous file reads would block the loop. The synchronous
+    ``load_registry`` implementation is executed in a worker thread.
+
+    Args:
+        name: Config file name without extension
+            (e.g. ``"kospel_cmi_standard"``).
+        config_dir: Optional directory for config files (used in tests). If
+            ``None``, loads from package ``configs/``.
+
+    Returns:
+        Dict mapping setting names to ``SettingDefinition``.
+
+    Raises:
+        RegistryConfigError: If config is invalid, incomplete, or not found.
+    """
+    return await asyncio.to_thread(load_registry, name, config_dir)

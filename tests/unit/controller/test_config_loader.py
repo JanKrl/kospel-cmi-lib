@@ -7,8 +7,9 @@ import pytest
 
 from kospel_cmi.controller.registry import (
     RegistryConfigError,
-    load_registry,
     SettingDefinition,
+    async_load_registry,
+    load_registry,
 )
 
 
@@ -107,6 +108,25 @@ class TestLoadRegistry:
         """Unknown config name raises RegistryConfigError."""
         with pytest.raises(RegistryConfigError, match="not found"):
             load_registry("nonexistent_config")
+
+
+class TestAsyncLoadRegistry:
+    """Tests for async_load_registry helper."""
+
+    @pytest.mark.asyncio
+    async def test_async_load_registry_returns_dict_of_setting_definitions(self) -> None:
+        """async_load_registry returns Dict[str, SettingDefinition]."""
+        registry = await async_load_registry("kospel_cmi_standard")
+        assert isinstance(registry, dict)
+        assert all(isinstance(v, SettingDefinition) for v in registry.values())
+        assert "heater_mode" in registry
+        assert "manual_temperature" in registry
+
+    @pytest.mark.asyncio
+    async def test_async_load_registry_unknown_config_raises(self) -> None:
+        """Unknown config name raises RegistryConfigError in async path."""
+        with pytest.raises(RegistryConfigError, match="not found"):
+            await async_load_registry("nonexistent_config")
 
 
 class TestRegistryConfigValidation:
