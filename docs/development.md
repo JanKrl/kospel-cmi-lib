@@ -4,64 +4,46 @@ This guide is for contributors and developers working on the kospel-cmi-lib proj
 
 ## Adding New Settings
 
-To add a new setting to the heater controller:
+To add a new setting to `Ekco_M3`:
 
-### 1. Add to YAML config
+### 1. Add property (read-only or read-write)
 
-Add the setting to `src/kospel_cmi/configs/kospel_cmi_standard.yaml` (or the config you use):
+In `src/kospel_cmi/controller/device.py`:
 
-**Simple decoder (no params):**
-```yaml
-new_setting:
-  register: "0b8d"
-  decode: scaled_x10
-  encode: scaled_x10
+**Read-only (e.g. sensor):**
+```python
+@property
+def new_sensor(self) -> Optional[float]:
+    """New sensor description."""
+    return decode_scaled_x10(self._get_register("0bXX"))
 ```
 
-**Map type (bit → enum):**
-```yaml
-new_flag:
-  register: "0b55"
-  bit_index: 10
-  decode:
-    type: map
-    true_value: NewEnum.ENABLED
-    false_value: NewEnum.DISABLED
-  encode:
-    type: map
-    true_value: NewEnum.ENABLED
-    false_value: NewEnum.DISABLED
+**Writable:**
+```python
+@property
+def new_setting(self) -> Optional[float]:
+    """New setting description."""
+    return decode_scaled_x10(self._get_register("0bXX"))
+
+async def set_new_setting(self, value: float) -> bool:
+    """Set new setting (0bXX)."""
+    return await self._set_scaled_x10("0bXX", value)
 ```
 
-### 2. Register decoder/encoder (if new)
+### 2. Add decoder/encoder (if new type)
 
-If the setting uses a **new** decode/encode type, add it to the registries in `registers/`:
-- `DECODER_REGISTRY` in `registers/decoders.py`
-- `ENCODER_REGISTRY` in `registers/encoders.py`
-- `ENUM_REGISTRY` in `registers/enums.py` (for new enums)
-
-For existing types (`scaled_x10`, `scaled_x100`, `heater_mode`, `map`), no code changes needed—just edit the YAML.
+If the setting uses a **new** decode/encode type, add it to `registers/decoders.py` and `registers/encoders.py`. For existing types (`scaled_x10`, `scaled_x100`, `heater_mode`, `decode_map`/`encode_map`), reuse them.
 
 ### 3. Add enum (if needed)
 
-Add an enum in `src/kospel_cmi/registers/enums.py` and register it in `ENUM_REGISTRY`:
+Add an enum in `src/kospel_cmi/registers/enums.py` and use it in decode_map/encode_map for bit-flag settings.
 
-```python
-class NewEnum(Enum):
-    ENABLED = "Enabled"
-    DISABLED = "Disabled"
-
-ENUM_REGISTRY["NewEnum"] = NewEnum
-```
-
-**Note**: Once added to the YAML config, the setting will automatically be available as a dynamic property on `HeaterController` when using a registry loaded from that config.
-
-For more details on the registry system, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
+For more details, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
 
 ## Best Practices
 
-- **Use high-level API**: Prefer `HeaterController` class over direct register manipulation
-- **Batch operations**: Use `HeaterController` class when modifying multiple settings
+- **Use high-level API**: Prefer `Ekco_M3` (properties and setters) over direct register manipulation
+- **Immediate writes**: Each `set_*()` writes immediately; no batching
 - **Avoid redundant calls**: Use `from_registers()` when you already have register data
 - **Error handling**: Check return values and handle `None` results appropriately
 - **Simulator mode**: Use YAML backend for development and testing

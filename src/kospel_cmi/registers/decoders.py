@@ -17,7 +17,7 @@ class Decoder(Protocol[T]):
     Some decoders like single-bit flags may require bit_index.
 
     All decoders must accept bit_index parameter (even if they ignore it)
-    to maintain compatibility with the registry system.
+    to support both full-register and bit-index decoders.
 
     Args:
         hex_val: Hex string from register
