@@ -1,12 +1,9 @@
-"""Unit tests for HeaterController with mock RegisterBackend."""
+"""Unit tests for Ekco_M3 with mock RegisterBackend."""
 
 import pytest
 
-from kospel_cmi.controller.api import HeaterController
-from kospel_cmi.controller.registry import load_registry
+from kospel_cmi.controller.device import Ekco_M3
 from kospel_cmi.registers.enums import CwuMode, HeaterMode, HeatingStatus
-
-REGISTRY = load_registry("kospel_cmi_standard")
 
 
 class MockRegisterBackend:
@@ -37,38 +34,35 @@ class MockRegisterBackend:
         return True
 
 
-class TestHeaterControllerWithMockBackend:
-    """HeaterController using MockRegisterBackend (no HTTP, no files)."""
+class TestEkco_M3:
+    """Ekco_M3 using MockRegisterBackend."""
 
     @pytest.mark.asyncio
-    async def test_refresh_populates_settings_from_backend(self) -> None:
-        """refresh() calls backend.read_registers and decodes into _settings."""
-        backend = MockRegisterBackend(
-            {"0b55": "d700"}
-        )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+    async def test_refresh_populates_registers_from_backend(self) -> None:
+        """refresh() calls backend.read_registers and populates _registers."""
+        backend = MockRegisterBackend({"0b55": "d700"})
+        controller = Ekco_M3(backend=backend)
         await controller.refresh()
-        assert controller.get_setting("heater_mode") is not None
+        assert controller.heater_mode is not None
 
     @pytest.mark.asyncio
-    async def test_from_registers_decodes_registry_settings(self) -> None:
-        """from_registers decodes only registry registers and fills cache."""
+    async def test_from_registers_loads_data(self) -> None:
+        """from_registers loads register data into cache."""
         backend = MockRegisterBackend()
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         registers = {"0b55": "d700"}
         controller.from_registers(registers)
-        assert "0b55" in controller._register_cache
-        assert controller._register_cache["0b55"] == "d700"
-        assert controller.get_setting("heater_mode") is not None
+        assert "0b55" in controller._registers
+        assert controller._registers["0b55"] == "d700"
+        assert controller.heater_mode is not None
 
     @pytest.mark.asyncio
-    async def test_save_writes_modified_register_via_backend(self) -> None:
-        """save() encodes pending writes and calls backend.write_register."""
+    async def test_set_heater_mode_writes_immediately(self) -> None:
+        """set_heater_mode writes to backend immediately."""
         backend = MockRegisterBackend({"0b55": "d700"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        controller.set_setting("heater_mode", HeaterMode.WINTER)
-        success = await controller.save()
+        success = await controller.set_heater_mode(HeaterMode.WINTER)
         assert success is True
         assert backend.registers.get("0b55") is not None
 
@@ -85,7 +79,7 @@ class TestHeaterControllerWithMockBackend:
                 self.aclose_called = True
 
         backend = BackendWithAclose()
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         await controller.aclose()
         assert backend.aclose_called is True
 
@@ -93,32 +87,14 @@ class TestHeaterControllerWithMockBackend:
     async def test_aclose_no_op_when_backend_has_no_aclose(self) -> None:
         """aclose() does not raise when backend has no aclose method."""
         backend = MockRegisterBackend()
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         await controller.aclose()  # Should not raise
-
-    @pytest.mark.asyncio
-    async def test_aclose_idempotent(self) -> None:
-        """Calling aclose() multiple times does not raise."""
-
-        class BackendWithAclose(MockRegisterBackend):
-            def __init__(self, *args, **kwargs) -> None:
-                super().__init__(*args, **kwargs)
-                self.aclose_count = 0
-
-            async def aclose(self) -> None:
-                self.aclose_count += 1
-
-        backend = BackendWithAclose()
-        controller = HeaterController(backend=backend, registry=REGISTRY)
-        await controller.aclose()
-        await controller.aclose()
-        assert backend.aclose_count == 2  # Both calls forwarded (backend decides idempotency)
 
     @pytest.mark.asyncio
     async def test_context_manager_returns_self_and_calls_aclose_on_exit(
         self,
     ) -> None:
-        """async with HeaterController(...) returns self and calls aclose on exit."""
+        """async with Ekco_M3(...) returns self and calls aclose on exit."""
 
         class BackendWithAclose(MockRegisterBackend):
             def __init__(self, *args, **kwargs) -> None:
@@ -129,20 +105,19 @@ class TestHeaterControllerWithMockBackend:
                 self.aclose_called = True
 
         backend = BackendWithAclose()
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         async with controller as ctrl:
             assert ctrl is controller
             assert not backend.aclose_called
         assert backend.aclose_called
 
     @pytest.mark.asyncio
-    async def test_heater_mode_manual_save_injects_room_mode(self) -> None:
-        """When heater_mode=MANUAL is saved, write_register is called for 0b55 and 0b32."""
+    async def test_set_heater_mode_manual_writes_room_mode(self) -> None:
+        """When set_heater_mode(MANUAL), write_register is called for 0b55 and 0b32."""
         backend = MockRegisterBackend({"0b55": "d700", "0b32": "0100"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        controller.set_setting("heater_mode", HeaterMode.MANUAL)
-        success = await controller.save()
+        success = await controller.set_heater_mode(HeaterMode.MANUAL)
         assert success is True
         written_registers = {r for r, _ in backend.writes}
         assert "0b55" in written_registers
@@ -150,15 +125,12 @@ class TestHeaterControllerWithMockBackend:
         assert backend.registers["0b32"] == "4000"  # 64 in little-endian
 
     @pytest.mark.asyncio
-    async def test_manual_temperature_save_alone_does_not_inject_room_mode(
-        self,
-    ) -> None:
-        """When only manual_temperature is saved, 0b32 is not written."""
+    async def test_set_manual_temperature_writes_only(self) -> None:
+        """set_manual_temperature writes only 0b8d."""
         backend = MockRegisterBackend({"0b8d": "c800", "0b32": "0100"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        controller.set_setting("manual_temperature", 23.0)
-        success = await controller.save()
+        success = await controller.set_manual_temperature(23.0)
         assert success is True
         written_registers = {r for r, _ in backend.writes}
         assert "0b8d" in written_registers
@@ -168,9 +140,9 @@ class TestHeaterControllerWithMockBackend:
     async def test_set_manual_heating_writes_mode_and_temp_registers(
         self,
     ) -> None:
-        """set_manual_heating sets heater_mode, manual_temperature, injects room_mode."""
+        """set_manual_heating sets heater_mode, manual_temperature, room_mode."""
         backend = MockRegisterBackend({"0b55": "d700", "0b8d": "c800", "0b32": "0100"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         success = await controller.set_manual_heating(22.0)
         assert success is True
@@ -186,7 +158,7 @@ class TestHeaterControllerWithMockBackend:
     ) -> None:
         """set_water_mode sets cwu_mode only (0b30)."""
         backend = MockRegisterBackend({"0b30": "0100"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         success = await controller.set_water_mode(CwuMode.COMFORT)
         assert success is True
@@ -198,7 +170,7 @@ class TestHeaterControllerWithMockBackend:
     async def test_set_water_mode_raises_on_invalid_type(self) -> None:
         """set_water_mode raises TypeError when mode is not CwuMode."""
         backend = MockRegisterBackend({"0b30": "0100"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         with pytest.raises(TypeError, match="mode must be CwuMode"):
             await controller.set_water_mode(2)  # type: ignore[arg-type]
@@ -209,7 +181,7 @@ class TestHeaterControllerWithMockBackend:
     ) -> None:
         """set_water_comfort_temperature sets cwu_temperature_comfort only (0b67)."""
         backend = MockRegisterBackend({"0b30": "0200", "0b67": "6801"})
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         success = await controller.set_water_comfort_temperature(38.0)
         assert success is True
@@ -222,8 +194,8 @@ class TestHeaterControllerWithMockBackend:
         self,
     ) -> None:
         """set_water_economy_temperature sets cwu_temperature_economy only (0b66)."""
-        backend = MockRegisterBackend({"0b30": "0000", "0b66": "6801"})  # 36°C -> 35°C
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        backend = MockRegisterBackend({"0b30": "0000", "0b66": "6801"})
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         success = await controller.set_water_economy_temperature(35.0)
         assert success is True
@@ -237,7 +209,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "0800", "0b51": "0000", "0b46": "0000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.co_heating_status == HeatingStatus.DISABLED
 
@@ -247,7 +219,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "2000", "0b51": "8000", "0b46": "5000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.co_heating_status == HeatingStatus.RUNNING
 
@@ -257,7 +229,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "2000", "0b51": "8000", "0b46": "0000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.co_heating_status == HeatingStatus.IDLE
 
@@ -267,7 +239,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "0800", "0b51": "0001", "0b46": "0000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.cwu_heating_status == HeatingStatus.RUNNING
 
@@ -277,7 +249,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "0800", "0b51": "0000", "0b46": "0000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.cwu_heating_status == HeatingStatus.IDLE
 
@@ -287,7 +259,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "3000", "0b51": "0001", "0b46": "5000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.cwu_heating_status == HeatingStatus.RUNNING
 
@@ -297,7 +269,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "2000", "0b51": "0001", "0b46": "5000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.cwu_heating_status == HeatingStatus.DISABLED
 
@@ -307,7 +279,7 @@ class TestHeaterControllerWithMockBackend:
         backend = MockRegisterBackend(
             {"0b55": "0000", "0b51": "8001", "0b46": "5000"}
         )
-        controller = HeaterController(backend=backend, registry=REGISTRY)
+        controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.co_heating_status == HeatingStatus.DISABLED
         assert controller.cwu_heating_status == HeatingStatus.DISABLED

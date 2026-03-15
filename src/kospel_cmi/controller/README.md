@@ -1,98 +1,54 @@
-# Registry Configuration
+# Device Controller
 
-Settings are defined in YAML config files and loaded via `load_registry(name)`.
-Each config maps semantic setting names to their register locations and decode/encode logic.
-`HeaterController` uses the loaded registry as the source of truth for all settings.
+`Ekco_M3` is a device-specific class for the Kospel C.MI Standard heater.
+All settings and sensors are explicit properties; writes happen immediately (no `save()`).
 
-## Loading a Registry
+## Usage
 
 ```python
-from kospel_cmi.controller.registry import load_registry, SettingDefinition
+from kospel_cmi.controller.device import Ekco_M3
+from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend
 
-# Load from package configs (configs/kospel_cmi_standard.yaml)
-registry: dict[str, SettingDefinition] = load_registry("kospel_cmi_standard")
+# Create device with backend
+backend = HttpRegisterBackend(session, api_base_url)
+controller = Ekco_M3(backend=backend)
 
-# Pass to HeaterController
-from kospel_cmi.controller.api import HeaterController
-controller = HeaterController(backend=backend, registry=registry)
+# Refresh register data
+await controller.refresh()
+
+# Read properties
+mode = controller.heater_mode
+temp = controller.room_temperature
+
+# Write (immediate; no save())
+await controller.set_heater_mode(HeaterMode.WINTER)
+await controller.set_manual_temperature(22.0)
+
+# Helper methods
+await controller.set_manual_heating(22.0)  # MANUAL mode + temperature
+await controller.set_water_mode(CwuMode.COMFORT)
+await controller.set_water_comfort_temperature(38.0)
 ```
 
-All config files live in `configs/`. To add a new device variant, create a new YAML file (e.g. `kospel_cmi_pro.yaml`) and load it with `load_registry("kospel_cmi_pro")`.
+## Properties (read-only)
 
-## YAML Schema
+- `heater_mode`, `manual_temperature`, `room_temperature`, `room_setpoint`
+- `cwu_mode`, `cwu_temperature_economy`, `cwu_temperature_comfort`
+- `is_water_heater_enabled`, `is_co_heating_active`, `is_cwu_heating_active`
+- `co_heating_status`, `cwu_heating_status` (computed)
+- `pressure`, `power`, `flow`, `valve_position`, etc.
 
-**Simple decoder (no params):**
+## Async setters (write immediately)
 
-```yaml
-heater_mode:
-  register: "0b55"
-  decode: heater_mode
-  encode: heater_mode
-```
+- `set_heater_mode(value)` — writes 0b55; if MANUAL also writes 0b32
+- `set_manual_temperature(value)` — writes 0b8d
+- `set_room_mode(value)`, `set_cwu_mode(value)`
+- `set_is_water_heater_enabled(value)`
+- `set_room_temperature_*`, `set_cwu_temperature_*`, etc.
 
-**Parameterized decoder (map with enum):**
+## Helper methods
 
-```yaml
-is_water_heater_enabled:
-  register: "0b55"
-  bit_index: 4
-  decode:
-    type: map
-    true_value: WaterHeaterEnabled.ENABLED
-    false_value: WaterHeaterEnabled.DISABLED
-  encode:
-    type: map
-    true_value: WaterHeaterEnabled.ENABLED
-    false_value: WaterHeaterEnabled.DISABLED
-```
-
-**Read-only (no encode):**
-
-```yaml
-pressure:
-  register: "0b8a"
-  decode: scaled_x100
-```
-
-## SettingDefinition Fields
-
-- **`register`** (str): Register address (e.g. `"0b55"`)
-- **`decode`** (str or object): Decoder name or `{type: map, true_value, false_value}`
-- **`encode`** (optional): Encoder name or map spec; omit for read-only
-- **`bit_index`** (optional): Bit index for flag-based settings
-
-## Available Decoders/Encoders
-
-Registered in `registers/decoders.py` and `registers/encoders.py`:
-
-- **heater_mode**: Decode/encode HeaterMode enum (bits 3, 5, 6, 7, 9 for OFF/SUMMER/WINTER/PARTY/VACATION/MANUAL)
-- **scaled_x10**: Value ×10 (temperatures, durations, etc.)
-- **scaled_x100**: Value ×100 (pressure, flow, etc.)
-- **map**: Bit → enum (requires `true_value` and `false_value` as `EnumName.MEMBER`)
-
-## Validation
-
-`load_registry()` validates the YAML with Pydantic. Invalid or incomplete configs
-(log errors and) raise `RegistryConfigError`. Fail-fast at load time.
-
-## Usage in HeaterController
-
-The registry is used by:
-
-1. **`HeaterController.from_registers()`**: Decodes settings from fetched register data
-2. **`HeaterController.save()`**: Encodes pending writes to register values
-3. **`HeaterController.__getattr__` / `__setattr__`**: Dynamic property access for registry settings
-
-## Helper Methods and Mode Coupling
-
-The firmware uses mode registers to select which temperature source is active. The library handles this coupling:
-
-- **CO (heating):** When `heater_mode=MANUAL` is saved, `room_mode` is set to `ROOM_MODE_MANUAL` (64) automatically so the firmware uses `manual_temperature` (0b8d). Use `set_manual_heating(temperature)` or set `heater_mode=MANUAL` before `manual_temperature` and `save()`.
-- **CWU (water):** Mode and temperature are separate. Use `set_water_mode(CwuMode)` to switch which temperature is active. Use `set_water_comfort_temperature(temp)` or `set_water_economy_temperature(temp)` to set the respective temperatures. Setting temperature alone does not switch mode.
-
-**Helper methods:**
-
-- `set_manual_heating(temperature)` — manual mode + target temperature
+- `set_manual_heating(temperature)` — MANUAL mode + target temperature
 - `set_water_mode(mode: CwuMode)` — CWU mode (ECONOMY, ANTI_FREEZE, COMFORT)
 - `set_water_comfort_temperature(temperature)` — CWU comfort temp only
 - `set_water_economy_temperature(temperature)` — CWU economy temp only
