@@ -316,9 +316,10 @@ class Ekco_M3:
 
         ok = await self._backend.write_register("0b55", new_hex)
         if ok:
-            self._registers["0b55"] = new_hex
             if value == HeaterMode.MANUAL:
                 ok = await self.set_room_mode(ROOM_MODE_MANUAL)
+            if ok:
+                self._registers["0b55"] = new_hex
         return ok
 
     async def set_room_mode(self, value: int) -> bool:

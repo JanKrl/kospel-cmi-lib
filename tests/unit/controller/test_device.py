@@ -128,7 +128,7 @@ class TestEkco_M3:
     async def test_set_heater_mode_manual_returns_false_when_room_mode_write_fails(
         self,
     ) -> None:
-        """When set_heater_mode(MANUAL) and set_room_mode fails, return False."""
+        """When set_heater_mode(MANUAL) and set_room_mode fails, return False and do not update cache."""
         backend = MockRegisterBackend({"0b55": "d700", "0b32": "0100"})
 
         async def write_register(register: str, hex_value: str) -> bool:
@@ -141,8 +141,10 @@ class TestEkco_M3:
         backend.write_register = write_register  # type: ignore[method-assign]
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
+        original_0b55 = controller._registers.get("0b55")
         success = await controller.set_heater_mode(HeaterMode.MANUAL)
         assert success is False
+        assert controller._registers.get("0b55") == original_0b55
 
     @pytest.mark.asyncio
     async def test_set_manual_temperature_writes_only(self) -> None:
