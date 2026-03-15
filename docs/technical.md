@@ -9,7 +9,7 @@ The Kospel Heater Control Library is a Python-based system for controlling Kospe
 **Key Characteristics:**
 - **Async-first**: Built on `asyncio` and `aiohttp` for non-blocking I/O
 - **Type-safe**: Strict type hinting throughout with no `Any` types
-- **Registry-driven**: Settings defined declaratively in a central registry
+- **Device-specific API**: Explicit properties and async setters on `Ekco_M3`
 - **Simulator-capable**: Full simulator implementation for offline development and testing
 - **Protocol-based**: Uses Python Protocol types for decoder/encoder interfaces
 
@@ -474,7 +474,7 @@ heater.from_registers(all_registers)
 
 ### Memory Considerations
 
-- **Register Cache**: Only cache registers in registry (not all 256)
+- **Register Cache**: Cache raw register values in `_registers` (up to 256)
 - **State Persistence**: Mock state persisted to disk, not kept in memory indefinitely
 - **Session Pooling**: Reuse HTTP connections via `aiohttp.ClientSession`
 

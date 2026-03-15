@@ -318,7 +318,7 @@ class Ekco_M3:
         if ok:
             self._registers["0b55"] = new_hex
             if value == HeaterMode.MANUAL:
-                await self.set_room_mode(ROOM_MODE_MANUAL)
+                ok = await self.set_room_mode(ROOM_MODE_MANUAL)
         return ok
 
     async def set_room_mode(self, value: int) -> bool:
@@ -466,5 +466,9 @@ class Ekco_M3:
     # --- Convenience methods for HA integration ---
 
     def get_setting(self, name: str) -> Any:
-        """Get a setting by name. For compatibility with getattr."""
+        """Get a setting by name. For compatibility with getattr.
+
+        Returns Any because setting types vary (HeaterMode, float, int, etc.).
+        Prefer direct property access (e.g. controller.heater_mode) for type safety.
+        """
         return getattr(self, name, None)
