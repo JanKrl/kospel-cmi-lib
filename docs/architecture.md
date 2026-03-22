@@ -18,11 +18,7 @@ flowchart TB
 
     subgraph Controller["Layer: Controller (High-level API)"]
         direction TB
-        HC["HeaterController\n(backend: RegisterBackend)"]
-        Reg["load_registry\n(configs/*.yaml)"]
-        SD["SettingDefinition\n(register, decode, encode)"]
-        HC --> Reg
-        Reg --> SD
+        HC["Ekco_M3\n(backend: RegisterBackend)"]
     end
 
     subgraph BackendLayer["Layer: Register Backend (Protocol + implementations)"]
@@ -56,12 +52,11 @@ flowchart TB
         Enc --> Enums
     end
 
-    Consumer -->|"refresh(), save(), attr access"| HC
+    Consumer -->|"refresh(), properties, set_*"| HC
     Consumer -->|"probe_device, discover_devices"| Discovery
     Discovery -->|"session, host"| Device
-    HC -->|"decode/encode via registry"| Reg
-    SD -->|"Decoder, Encoder"| Dec
-    SD -->|"Decoder, Encoder"| Enc
+    HC -->|"decode/encode"| Dec
+    HC --> Enc
     HC -->|"read_registers, read_register, write_register"| Protocol
     HttpBackend --> API
     API -->|"session, api_base_url"| Device
@@ -80,8 +75,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph L1["controller"]
-        api["api.py\nHeaterController"]
-        registry["registry.py\nload_registry, SettingDefinition"]
+        device["device.py\nEkco_M3"]
     end
     subgraph L2["kospel"]
         backend["backend.py\nRegisterBackend, HttpBackend\nYamlBackend, write_flag_bit"]
@@ -100,11 +94,10 @@ flowchart LR
         regScanner["register_scanner\nkospel-scan-registers"]
         liveScanner["live_scanner\nkospel-scan-live"]
     end
-    api --> backend
-    api --> registry
-    registry --> dec
-    registry --> enc
-    registry --> enums
+    device --> backend
+    device --> dec
+    device --> enc
+    device --> enums
     backend --> kapi
     backend --> simulator
     backend --> utils
@@ -119,16 +112,16 @@ flowchart LR
 %% Design: Register backend abstraction
 %% =============================================================================
 %%
-%% - HeaterController(backend: RegisterBackend, registry=...) — no session, no api_base_url, no simulation_mode.
+%% - Ekco_M3(backend: RegisterBackend) — no session, no api_base_url, no simulation_mode.
 %% - RegisterBackend Protocol: read_register(register), read_registers(start_register, count), write_register(register, hex_value).
 %% - HttpRegisterBackend(session, api_base_url): implements Protocol via kospel.api HTTP calls.
 %% - YamlRegisterBackend(state_file: str): implements Protocol via file load/save; state_file is a required parameter (no env var).
 %% - write_flag_bit: single implementation (e.g. in backend.py), takes any RegisterBackend and uses read_register + set_bit + write_register; not part of Protocol; not duplicated in HTTP or YAML.
-%% - Consumer loads registry via load_registry(name), passes backend and registry to HeaterController.
+%% - Consumer creates Ekco_M3(backend); no registry.
 
 ## Architecture summary (for implementation)
 
-- **Controller** (`controller/api.py`): `HeaterController(backend: RegisterBackend, registry: Dict[str, SettingDefinition])`. Registry from `load_registry(name)`; configs in `configs/*.yaml`. Uses only `backend.read_register`, `backend.read_registers`, `backend.write_register` (and if needed, a standalone `write_flag_bit(backend, ...)`).
+- **Controller** (`controller/device.py`): `Ekco_M3(backend: RegisterBackend)`. Device-specific class with explicit properties and async setters. Uses `backend.read_register`, `backend.read_registers`, `backend.write_register`. Writes happen immediately (no save/batch).
 - **RegisterBackend Protocol** (`kospel/backend.py`): methods `read_register(register) -> Optional[str]`, `read_registers(start_register, count) -> Dict[str, str]`, `write_register(register, hex_value) -> bool`. No transport-specific parameters.
 - **HttpRegisterBackend** (`kospel/backend.py`): constructor `(session: aiohttp.ClientSession, api_base_url: str)`. Implements Protocol by calling the HTTP-only functions from `kospel/api.py` (no decorators, no `simulation_mode`).
 - **YamlRegisterBackend** (`kospel/backend.py`): constructor `(state_file: str)` — path required, no environment variable for file location. Delegates to `simulator.py` (function module) for YAML load/save; no separate "state" class.
@@ -138,3 +131,4 @@ flowchart LR
 - **Configuration**: No environment variables for simulation or YAML path. Consumer passes `api_base_url` for HTTP or `state_file` for YAML when constructing the backend.
 - **Discovery** (`kospel/discovery.py`): `probe_device`, `discover_devices` — no device_id required; uses `GET /api/dev` and `GET /api/dev/<id>/info` to find devices and obtain `api_base_url`.
 - **Tools** (`tools/`): CLI entry points (`kospel-discover`, `kospel-scan-registers`, `kospel-scan-live`) and Python API; use `RegisterBackend` for register access (scanner tools) or `discovery` module for device discovery.
+- **Consumer loads** `Ekco_M3(backend)` — no registry; class is device-specific.

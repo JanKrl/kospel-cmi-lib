@@ -40,7 +40,6 @@ kospel-scan-live = "kospel_cmi.tools.live_scanner:main"
 [tool.uv.build-backend]
 module-name = "kospel_cmi"
 module-root = "src"
-source-include = ["src/kospel_cmi/configs/**"]
 
 [tool.ruff]
 line-length = 88

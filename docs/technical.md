@@ -9,7 +9,7 @@ The Kospel Heater Control Library is a Python-based system for controlling Kospe
 **Key Characteristics:**
 - **Async-first**: Built on `asyncio` and `aiohttp` for non-blocking I/O
 - **Type-safe**: Strict type hinting throughout with no `Any` types
-- **Registry-driven**: Settings defined declaratively in a central registry
+- **Device-specific API**: Explicit properties and async setters on `Ekco_M3`
 - **Simulator-capable**: Full simulator implementation for offline development and testing
 - **Protocol-based**: Uses Python Protocol types for decoder/encoder interfaces
 
@@ -35,30 +35,22 @@ The system follows a strict 3-layer architecture with clear boundaries:
 - Lower layers are unaware of higher layers
 - Higher layers depend on lower layers
 
-### Registry Pattern
+### Device Class Pattern
 
-> **See also**: For complete registry system documentation, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
+> **See also**: For device class documentation, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
 
-Settings are defined in YAML config files and loaded via `load_registry(name)`. The registry maps semantic setting names to `SettingDefinition` (register, decode/encode functions). This pattern enables:
+`Ekco_M3` is a device-specific class with explicit properties and async setters. Each setting is a property (read) or `set_*` method (write). Writes happen immediately; no `save()` or batching.
 
-- **Declarative Configuration**: Settings defined in YAML; no hardcoded registry in Python
-- **Multiple Configs**: One file per device variant (e.g. `kospel_cmi_standard`, `kospel_cmi_pro`)
-- **Schema Validation**: Pydantic validates YAML at load time; invalid configs raise `RegistryConfigError`
-- **Automatic Property Generation**: Dynamic properties on `HeaterController`
-- **Read-only Enforcement**: Settings without `encode` in YAML are read-only
+- **Explicit API**: All settings are explicit properties; IDE support and type safety
+- **Immediate save**: Each setter writes to the device immediately
+- **Device-specific**: One class per device type; add `KospelCmiPro` for new variants
 
 **Usage:**
 ```python
-registry = load_registry("kospel_cmi_standard")
-controller = HeaterController(backend=backend, registry=registry)
-```
-
-**Example YAML Entry:**
-```yaml
-heater_mode:
-  register: "0b55"
-  decode: heater_mode
-  encode: heater_mode
+controller = Ekco_M3(backend=backend)
+await controller.refresh()
+mode = controller.heater_mode  # Read property
+await controller.set_heater_mode(HeaterMode.WINTER)  # Write immediately
 ```
 
 ### Register Backend (Protocol)
@@ -68,7 +60,7 @@ Register read/write is abstracted behind a `RegisterBackend` Protocol. The contr
 - **Protocol** (`kospel/backend.py`): `read_register(register)`, `read_registers(start_register, count)`, `write_register(register, hex_value)`. No session, URL, or mode parameters.
 - **HttpRegisterBackend(session, api_base_url)**: implements the protocol via HTTP calls to the device.
 - **YamlRegisterBackend(state_file: str)**: implements the protocol using a YAML state file; the file path is a required constructor parameter (no environment variable).
-- **Construction**: The consumer creates backend and registry separately, then passes both: `HeaterController(backend=..., registry=load_registry("kospel_cmi_standard"))`.
+- **Construction**: The consumer creates backend and passes it to `Ekco_M3(backend=...)`.
 - **write_flag_bit**: Single implementation in `kospel/backend.py` as a **function** that takes the backend as first argument: `write_flag_bit(backend, register, bit_index, state)`. It is not a method on the backend; it uses `backend.read_register` and `backend.write_register`. One implementation for all backends.
 - **Why Protocol**: The controller and `write_flag_bit` need “something that can read/write registers”. A Protocol lets any object with the right methods be used. Alternatives (e.g. passing three callables) would require the caller to build closures over `session`/`api_base_url` or `state_file`; the Protocol keeps that state inside the backend object and keeps the interface explicit.
 
@@ -208,7 +200,7 @@ Heater mode (bits 3, 5, 6, 7, 9): OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL �
 
 **Session Management**:
 - `aiohttp.ClientSession` passed explicitly (no global state)
-- When using `HttpRegisterBackend`, call `HeaterController.aclose()` when done, or use `async with HeaterController(backend=..., registry=...)` to release the session automatically
+- When using `HttpRegisterBackend`, call `Ekco_M3.aclose()` when done, or use `async with Ekco_M3(backend=...)` to release the session automatically
 - Supports connection pooling and keep-alive
 
 **Function Signatures**:
@@ -251,16 +243,13 @@ Decoder(Protocol[T]): ...
 
 ### State Management
 
-**HeaterController State**:
-- `_settings: Dict[str, Any]`: Decoded setting values
-- `_pending_writes: Dict[str, Any]`: Modified settings awaiting save
-- `_register_cache: Dict[str, str]`: Cached raw register values
+**Ekco_M3 State**:
+- `_registers: Dict[str, str]`: Cached raw register values
 
 **State Flow**:
-1. `refresh()` → Fetch registers → Decode → Store in `_settings`
-2. Property access → Return from `_settings`
-3. Property write → Store in `_settings` and `_pending_writes`
-4. `save()` → Encode pending writes → Write registers → Clear `_pending_writes`
+1. `refresh()` → Fetch registers → Store in `_registers`
+2. Property access → Decode from `_registers` on demand
+3. `set_*()` → Encode → Write register immediately → Update `_registers`
 
 ### Batch Operations
 
@@ -301,18 +290,14 @@ This section applies when **embedding or vendoring** this library inside a Home 
 ```python
 # ✅ CORRECT: Relative imports within integration
 from .kospel.backend import HttpRegisterBackend, YamlRegisterBackend
-from .controller.api import HeaterController
-from .controller.registry import load_registry
+from .controller.device import Ekco_M3
 from ..logging_config import get_logger
 
-# Registry: load by name, pass to HeaterController
-registry = load_registry("kospel_cmi_standard")
-controller = HeaterController(backend=..., registry=registry)
+controller = Ekco_M3(backend=...)
 
 # ❌ INCORRECT: Absolute imports
 from kospel.backend import HttpRegisterBackend
-from controller.api import HeaterController
-from controller.registry import load_registry
+from controller.device import Ekco_M3
 from logging_config import get_logger
 ```
 
@@ -349,7 +334,7 @@ from logging_config import get_logger
 **Solution**: Registry defines settings declaratively, properties generated automatically.
 
 **Benefits**:
-- Add new settings without code changes to `HeaterController`
+- Add new settings by adding properties and setters to `Ekco_M3`
 - Single source of truth for register mappings
 - Type safety through associated decode/encode functions
 
@@ -489,7 +474,7 @@ heater.from_registers(all_registers)
 
 ### Memory Considerations
 
-- **Register Cache**: Only cache registers in registry (not all 256)
+- **Register Cache**: Cache raw register values in `_registers` (up to 256)
 - **State Persistence**: Mock state persisted to disk, not kept in memory indefinitely
 - **Session Pooling**: Reuse HTTP connections via `aiohttp.ClientSession`
 
@@ -535,5 +520,5 @@ Detailed module-specific documentation is co-located with the code:
 
 - **[kospel/](../src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](../src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
-- **[controller/](../src/kospel_cmi/controller/README.md)** - YAML registry config and load_registry
+- **[controller/](../src/kospel_cmi/controller/README.md)** - Ekco_M3 device class
 
