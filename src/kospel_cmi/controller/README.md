@@ -36,12 +36,14 @@ await controller.set_water_comfort_temperature(38.0)
 - `cwu_mode`, `cwu_temperature_economy`, `cwu_temperature_comfort`
 - `is_water_heater_enabled`, `is_co_heating_active`, `is_cwu_heating_active`
 - `co_heating_status`, `cwu_heating_status` (computed)
-- `pressure`, `power`, `flow`, `valve_position`, etc.
+- `pressure`, `power` (0b46, delivered kW), `flow`, `valve_position`, etc.
+- `boiler_max_power_index` (0b62), `boiler_max_power_kw` (0b34, limit in kW; not written by this library—refresh after changing index)
 
 ## Async setters (write immediately)
 
 - `set_heater_mode(value)` — writes 0b55; if MANUAL also writes 0b32
 - `set_manual_temperature(value)` — writes 0b8d
+- `set_boiler_max_power_index(value)` — writes 0b62 only; firmware updates 0b34
 - `set_room_mode(value)`, `set_cwu_mode(value)`
 - `set_is_water_heater_enabled(value)`
 - `set_room_temperature_*`, `set_cwu_temperature_*`, etc.

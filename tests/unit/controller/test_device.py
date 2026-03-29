@@ -3,7 +3,12 @@
 import pytest
 
 from kospel_cmi.controller.device import Ekco_M3
-from kospel_cmi.registers.enums import CwuMode, HeaterMode, HeatingStatus
+from kospel_cmi.registers.enums import (
+    BoilerMaxPowerIndex,
+    CwuMode,
+    HeaterMode,
+    HeatingStatus,
+)
 
 
 class MockRegisterBackend:
@@ -224,6 +229,66 @@ class TestEkco_M3:
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b66"}
         assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian
+
+    @pytest.mark.asyncio
+    async def test_boiler_max_power_index_decodes_0b62(self) -> None:
+        """boiler_max_power_index reads 0b62 as BoilerMaxPowerIndex."""
+        backend = MockRegisterBackend({"0b62": "0200", "0b34": "3c00"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.boiler_max_power_index == BoilerMaxPowerIndex.KW_6
+
+    @pytest.mark.asyncio
+    async def test_boiler_max_power_kw_decodes_0b34(self) -> None:
+        """boiler_max_power_kw reads 0b34 as kW (×10)."""
+        backend = MockRegisterBackend({"0b62": "0200", "0b34": "3c00"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.boiler_max_power_kw == 6.0
+
+    @pytest.mark.asyncio
+    async def test_boiler_max_power_index_unknown_raw_returns_none(self) -> None:
+        """boiler_max_power_index is None when 0b62 is outside enum range."""
+        backend = MockRegisterBackend({"0b62": "0500"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.boiler_max_power_index is None
+
+    @pytest.mark.asyncio
+    async def test_set_boiler_max_power_index_writes_0b62_only(self) -> None:
+        """set_boiler_max_power_index writes 0b62 and does not write 0b34."""
+        backend = MockRegisterBackend({"0b62": "0100", "0b34": "2800"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        success = await controller.set_boiler_max_power_index(BoilerMaxPowerIndex.KW_6)
+        assert success is True
+        written_registers = {r for r, _ in backend.writes}
+        assert written_registers == {"0b62"}
+        assert backend.registers["0b62"] == "0200"
+        assert backend.registers["0b34"] == "2800"
+        assert controller._registers["0b62"] == "0200"
+
+    @pytest.mark.asyncio
+    async def test_set_boiler_max_power_index_accepts_int(self) -> None:
+        """set_boiler_max_power_index accepts int in valid range."""
+        backend = MockRegisterBackend({"0b62": "0000"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert await controller.set_boiler_max_power_index(3) is True
+        assert backend.registers["0b62"] == "0300"
+
+    @pytest.mark.asyncio
+    async def test_set_boiler_max_power_index_raises_on_invalid_index(
+        self,
+    ) -> None:
+        """set_boiler_max_power_index raises ValueError for out-of-range index."""
+        backend = MockRegisterBackend({"0b62": "0100"})
+        controller = Ekco_M3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        with pytest.raises(ValueError, match="boiler_max_power_index"):
+            await controller.set_boiler_max_power_index(4)
+        with pytest.raises(ValueError, match="boiler_max_power_index"):
+            await controller.set_boiler_max_power_index(-1)
 
     @pytest.mark.asyncio
     async def test_co_heating_status_summer_disabled(self) -> None:
