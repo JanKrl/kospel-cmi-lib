@@ -23,6 +23,7 @@ from ..registers.encoders import (
     encode_scaled_x10,
 )
 from ..registers.enums import (
+    BoilerMaxPowerIndex,
     CwuMode,
     HeaterMode,
     HeatingCircuitActive,
@@ -112,30 +113,22 @@ class Ekco_M3:
     @property
     def is_water_heater_enabled(self) -> Optional[WaterHeaterEnabled]:
         """Water heater enabled (bit 4 of 0b55)."""
-        return _decode_water_heater_enabled(
-            self._get_register("0b55"), 4
-        )
+        return _decode_water_heater_enabled(self._get_register("0b55"), 4)
 
     @property
     def is_co_heating_active(self) -> Optional[HeatingCircuitActive]:
         """CO heating circuit active (bit 7 of 0b51)."""
-        return _decode_co_heating_active(
-            self._get_register("0b51"), 7
-        )
+        return _decode_co_heating_active(self._get_register("0b51"), 7)
 
     @property
     def is_cwu_heating_active(self) -> Optional[HeatingCircuitActive]:
         """CWU heating circuit active (bit 8 of 0b51)."""
-        return _decode_cwu_heating_active(
-            self._get_register("0b51"), 8
-        )
+        return _decode_cwu_heating_active(self._get_register("0b51"), 8)
 
     @property
     def valve_position(self) -> Optional[ValvePosition]:
         """Valve position (bit 2 of 0b51)."""
-        return _decode_valve_position(
-            self._get_register("0b51"), 2
-        )
+        return _decode_valve_position(self._get_register("0b51"), 2)
 
     @property
     def manual_temperature(self) -> Optional[float]:
@@ -211,6 +204,22 @@ class Ekco_M3:
     def power(self) -> Optional[float]:
         """Current power (0b46), kW."""
         return decode_scaled_x10(self._get_register("0b46"))
+
+    @property
+    def boiler_max_power_index(self) -> Optional[BoilerMaxPowerIndex]:
+        """Max boiler power step index (0b62). Write via ``set_boiler_max_power_index``."""
+        raw = decode_raw_int(self._get_register("0b62"))
+        if raw is None:
+            return None
+        try:
+            return BoilerMaxPowerIndex(raw)
+        except ValueError:
+            return None
+
+    @property
+    def boiler_max_power_kw(self) -> Optional[float]:
+        """Configured max boiler power limit (0b34), kW (×10). Read-only; firmware updates after index write."""
+        return decode_scaled_x10(self._get_register("0b34"))
 
     @property
     def flow(self) -> Optional[float]:
@@ -346,6 +355,28 @@ class Ekco_M3:
             self._registers["0b30"] = hex_val
         return ok
 
+    async def set_boiler_max_power_index(
+        self, value: BoilerMaxPowerIndex | int
+    ) -> bool:
+        """Set max boiler power step (0b62)."""
+        idx = int(value)
+        try:
+            BoilerMaxPowerIndex(idx)
+        except ValueError as exc:
+            raise ValueError(
+                f"boiler_max_power_index must be 0..3 (BoilerMaxPowerIndex), got {idx}"
+            ) from exc
+
+        hex_val = encode_raw_int(idx, None)
+        if hex_val is None:
+            logger.error("Failed to encode boiler_max_power_index")
+            return False
+
+        ok = await self._backend.write_register("0b62", hex_val)
+        if ok:
+            self._registers["0b62"] = hex_val
+        return ok
+
     async def set_is_water_heater_enabled(self, value: WaterHeaterEnabled) -> bool:
         """Set water heater enabled (bit 4 of 0b55)."""
         current = self._get_register("0b55")
@@ -451,9 +482,7 @@ class Ekco_M3:
     async def set_water_mode(self, mode: CwuMode) -> bool:
         """Set CWU water mode (which temperature source is active)."""
         if not isinstance(mode, CwuMode):
-            raise TypeError(
-                f"mode must be CwuMode, got {type(mode).__name__}"
-            )
+            raise TypeError(f"mode must be CwuMode, got {type(mode).__name__}")
         return await self.set_cwu_mode(mode.value)
 
     async def set_water_comfort_temperature(self, temperature: float) -> bool:

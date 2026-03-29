@@ -58,6 +58,22 @@ class CwuMode(IntEnum):
     COMFORT = 2  # Uses cwu_temperature_comfort (0b67)
 
 
+class BoilerMaxPowerIndex(IntEnum):
+    """Max boiler power selector.
+
+    Stored in register 0b62. Write this register to change the limit; register
+    0b34 reflects the selected limit in kW (×10) and is updated by firmware.
+
+    Member names match typical Ekco M3 steps; ordering may differ on other
+    models or firmware.
+    """
+
+    KW_2 = 0
+    KW_4 = 1
+    KW_6 = 2
+    KW_8 = 3
+
+
 # Firmware value for room_mode (0b32) when heater_mode=MANUAL.
 # Tells firmware to use manual_temperature (0b8d) as the target.
 ROOM_MODE_MANUAL = 64
@@ -71,4 +87,5 @@ ENUM_REGISTRY: dict[str, type[Enum]] = {
     "ValvePosition": ValvePosition,
     "HeatingStatus": HeatingStatus,
     "HeatingCircuitActive": HeatingCircuitActive,
+    "BoilerMaxPowerIndex": BoilerMaxPowerIndex,
 }
