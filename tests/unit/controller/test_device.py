@@ -3,6 +3,7 @@
 import pytest
 
 from kospel_cmi.controller.device import Ekco_M3
+from kospel_cmi.exceptions import KospelWriteError, RegisterMissingError
 from kospel_cmi.registers.enums import (
     BoilerMaxPowerIndex,
     CwuMode,
@@ -18,7 +19,7 @@ class MockRegisterBackend:
         self.registers = registers or {}
         self.writes: list[tuple[str, str]] = []
 
-    async def read_register(self, register: str) -> str | None:
+    async def read_register(self, register: str) -> str:
         return self.registers.get(register, "0000")
 
     async def read_registers(self, start_register: str, count: int) -> dict[str, str]:
@@ -33,10 +34,9 @@ class MockRegisterBackend:
             result[reg_str] = self.registers.get(reg_str, "0000")
         return result
 
-    async def write_register(self, register: str, hex_value: str) -> bool:
+    async def write_register(self, register: str, hex_value: str) -> None:
         self.writes.append((register, hex_value))
         self.registers[register] = hex_value
-        return True
 
 
 class TestEkco_M3:
@@ -62,13 +62,20 @@ class TestEkco_M3:
         assert controller.heater_mode is not None
 
     @pytest.mark.asyncio
+    async def test_property_raises_register_missing_when_not_in_cache(self) -> None:
+        """Reading a property without the register in cache raises RegisterMissingError."""
+        controller = Ekco_M3(backend=MockRegisterBackend())
+        controller.from_registers({})
+        with pytest.raises(RegisterMissingError, match="0b55"):
+            _ = controller.heater_mode
+
+    @pytest.mark.asyncio
     async def test_set_heater_mode_writes_immediately(self) -> None:
         """set_heater_mode writes to backend immediately."""
         backend = MockRegisterBackend({"0b55": "d700"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_heater_mode(HeaterMode.WINTER)
-        assert success is True
+        await controller.set_heater_mode(HeaterMode.WINTER)
         assert backend.registers.get("0b55") is not None
 
     @pytest.mark.asyncio
@@ -122,34 +129,31 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b55": "d700", "0b32": "0100"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_heater_mode(HeaterMode.MANUAL)
-        assert success is True
+        await controller.set_heater_mode(HeaterMode.MANUAL)
         written_registers = {r for r, _ in backend.writes}
         assert "0b55" in written_registers
         assert "0b32" in written_registers
         assert backend.registers["0b32"] == "4000"  # 64 in little-endian
 
     @pytest.mark.asyncio
-    async def test_set_heater_mode_manual_returns_false_when_room_mode_write_fails(
+    async def test_set_heater_mode_manual_raises_when_room_mode_write_fails(
         self,
     ) -> None:
-        """When set_heater_mode(MANUAL) and set_room_mode fails, return False and do not update cache."""
+        """When set_heater_mode(MANUAL) and set_room_mode fails, raise after 0b55 write."""
         backend = MockRegisterBackend({"0b55": "d700", "0b32": "0100"})
 
-        async def write_register(register: str, hex_value: str) -> bool:
+        async def write_register(register: str, hex_value: str) -> None:
             if register == "0b32":
-                return False
+                raise KospelWriteError("simulated room mode failure")
             backend.registers[register] = hex_value
             backend.writes.append((register, hex_value))
-            return True
 
         backend.write_register = write_register  # type: ignore[method-assign]
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        original_0b55 = controller._registers.get("0b55")
-        success = await controller.set_heater_mode(HeaterMode.MANUAL)
-        assert success is False
-        assert controller._registers.get("0b55") == original_0b55
+        with pytest.raises(KospelWriteError, match="room mode"):
+            await controller.set_heater_mode(HeaterMode.MANUAL)
+        assert any(w[0] == "0b55" for w in backend.writes)
 
     @pytest.mark.asyncio
     async def test_set_manual_temperature_writes_only(self) -> None:
@@ -157,8 +161,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b8d": "c800", "0b32": "0100"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_manual_temperature(23.0)
-        assert success is True
+        await controller.set_manual_temperature(23.0)
         written_registers = {r for r, _ in backend.writes}
         assert "0b8d" in written_registers
         assert "0b32" not in written_registers
@@ -171,8 +174,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b55": "d700", "0b8d": "c800", "0b32": "0100"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_manual_heating(22.0)
-        assert success is True
+        await controller.set_manual_heating(22.0)
         written_registers = {r for r, _ in backend.writes}
         assert "0b55" in written_registers
         assert "0b8d" in written_registers
@@ -187,8 +189,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b30": "0100"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_water_mode(CwuMode.COMFORT)
-        assert success is True
+        await controller.set_water_mode(CwuMode.COMFORT)
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b30"}
         assert backend.registers["0b30"] == "0200"  # 2 in little-endian
@@ -210,8 +211,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b30": "0200", "0b67": "6801"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_water_comfort_temperature(38.0)
-        assert success is True
+        await controller.set_water_comfort_temperature(38.0)
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b67"}
         assert backend.registers["0b67"] == "7c01"  # 38.0 in little-endian
@@ -224,8 +224,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b30": "0000", "0b66": "6801"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_water_economy_temperature(35.0)
-        assert success is True
+        await controller.set_water_economy_temperature(35.0)
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b66"}
         assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian
@@ -260,8 +259,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b62": "0100", "0b34": "2800"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        success = await controller.set_boiler_max_power_index(BoilerMaxPowerIndex.KW_6)
-        assert success is True
+        await controller.set_boiler_max_power_index(BoilerMaxPowerIndex.KW_6)
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b62"}
         assert backend.registers["0b62"] == "0200"
@@ -274,7 +272,7 @@ class TestEkco_M3:
         backend = MockRegisterBackend({"0b62": "0000"})
         controller = Ekco_M3(backend=backend)
         controller.from_registers(await backend.read_registers("0b00", 256))
-        assert await controller.set_boiler_max_power_index(3) is True
+        await controller.set_boiler_max_power_index(3)
         assert backend.registers["0b62"] == "0300"
 
     @pytest.mark.asyncio

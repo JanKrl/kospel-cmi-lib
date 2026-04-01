@@ -12,6 +12,7 @@ from typing import Dict
 import aiofiles
 import yaml
 
+from ..exceptions import KospelWriteError
 from ..registers.utils import int_to_reg_address, reg_address_to_int, reg_to_int
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,8 @@ async def _save_registers(state_file: str, registers: Dict[str, str]) -> None:
         async with aiofiles.open(path, "w") as f:
             await f.write(content)
     except Exception as e:
-        logger.warning(f"Could not save state to {path}: {e}")
+        logger.error("Could not save state to %s: %s", path, e)
+        raise KospelWriteError(f"Could not save register state to {path}") from e
 
 
 async def read_register(state_file: str, register: str) -> str:
@@ -121,7 +123,7 @@ async def write_register(
     state_file: str,
     register: str,
     hex_value: str,
-) -> bool:
+) -> None:
     """
     Write a single register to the YAML state file.
 
@@ -130,8 +132,8 @@ async def write_register(
         register: Register address (e.g. "0b55").
         hex_value: Hex string value to write.
 
-    Returns:
-        True (always succeeds for file write).
+    Raises:
+        KospelWriteError: If the state file could not be written.
     """
     registers = await _load_registers(state_file)
     old_value = registers.get(register, "0000")
@@ -143,4 +145,3 @@ async def write_register(
         f"[YAML] WRITE register {register}: {old_value} → {hex_value} "
         f"({old_int} → {new_int})"
     )
-    return True

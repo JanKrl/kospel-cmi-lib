@@ -8,6 +8,7 @@ Writes happen immediately; no save() or batching.
 import logging
 from typing import Any, Optional
 
+from ..exceptions import RegisterMissingError
 from ..kospel.backend import RegisterBackend
 from ..registers.decoders import (
     decode_heater_mode,
@@ -65,19 +66,34 @@ class Ekco_M3:
         self._registers: dict[str, str] = {}
 
     def _get_register(self, register: str) -> str:
-        """Get register value from cache. Caller must refresh() first for read-modify-write."""
-        return self._registers.get(register, "0000")
+        """Get register value from cache.
+
+        Raises:
+            RegisterMissingError: If the register was not loaded (refresh/from_registers).
+        """
+        if register not in self._registers:
+            raise RegisterMissingError(
+                register,
+                detail="not in cache; call refresh() or load via from_registers()",
+            )
+        return self._registers[register]
 
     async def refresh(self) -> None:
-        """Load all registers from backend (batch read)."""
+        """Load registers from backend (batch read). Partial maps are stored as returned.
+
+        On failure, the previous cache is left unchanged.
+
+        Raises:
+            Same as ``RegisterBackend.read_registers`` (e.g. HTTP transport errors or
+            invalid hex from the device).
+        """
         logger.info("Refreshing heater settings from backend")
-        all_registers = await self._backend.read_registers("0b00", 256)
-        self._registers = all_registers or {}
+        self._registers = await self._backend.read_registers("0b00", 256)
         logger.info("Heater settings refreshed successfully")
 
     def from_registers(self, registers: dict[str, str]) -> None:
-        """Load from pre-fetched register data."""
-        self._registers = dict(registers)
+        """Load from pre-fetched register data. May be partial; missing keys fail on read."""
+        self._registers = registers
 
     async def aclose(self) -> None:
         """Release backend resources (e.g. HTTP session). Idempotent."""
@@ -315,49 +331,39 @@ class Ekco_M3:
 
     # --- Async setters (write immediately) ---
 
-    async def set_heater_mode(self, value: HeaterMode) -> bool:
+    async def set_heater_mode(self, value: HeaterMode) -> None:
         """Set heater mode. Writes 0b55. If MANUAL, also sets room_mode=64 (0b32)."""
         current = self._get_register("0b55")
         new_hex = encode_heater_mode(value, current_hex=current)
         if new_hex is None:
-            logger.error("Failed to encode heater_mode")
-            return False
+            raise ValueError("Failed to encode heater_mode")
 
-        ok = await self._backend.write_register("0b55", new_hex)
-        if ok:
-            if value == HeaterMode.MANUAL:
-                ok = await self.set_room_mode(ROOM_MODE_MANUAL)
-            if ok:
-                self._registers["0b55"] = new_hex
-        return ok
+        await self._backend.write_register("0b55", new_hex)
+        self._registers["0b55"] = new_hex
+        if value == HeaterMode.MANUAL:
+            await self.set_room_mode(ROOM_MODE_MANUAL)
 
-    async def set_room_mode(self, value: int) -> bool:
+    async def set_room_mode(self, value: int) -> None:
         """Set room mode (0b32)."""
         hex_val = encode_raw_int(value, None)
         if hex_val is None:
-            logger.error("Failed to encode room_mode")
-            return False
+            raise ValueError("Failed to encode room_mode")
 
-        ok = await self._backend.write_register("0b32", hex_val)
-        if ok:
-            self._registers["0b32"] = hex_val
-        return ok
+        await self._backend.write_register("0b32", hex_val)
+        self._registers["0b32"] = hex_val
 
-    async def set_cwu_mode(self, value: int) -> bool:
+    async def set_cwu_mode(self, value: int) -> None:
         """Set CWU mode (0b30). 0=economy, 1=anti-freeze, 2=comfort."""
         hex_val = encode_raw_int(value, None)
         if hex_val is None:
-            logger.error("Failed to encode cwu_mode")
-            return False
+            raise ValueError("Failed to encode cwu_mode")
 
-        ok = await self._backend.write_register("0b30", hex_val)
-        if ok:
-            self._registers["0b30"] = hex_val
-        return ok
+        await self._backend.write_register("0b30", hex_val)
+        self._registers["0b30"] = hex_val
 
     async def set_boiler_max_power_index(
         self, value: BoilerMaxPowerIndex | int
-    ) -> bool:
+    ) -> None:
         """Set max boiler power step (0b62)."""
         idx = int(value)
         try:
@@ -369,129 +375,113 @@ class Ekco_M3:
 
         hex_val = encode_raw_int(idx, None)
         if hex_val is None:
-            logger.error("Failed to encode boiler_max_power_index")
-            return False
+            raise ValueError("Failed to encode boiler_max_power_index")
 
-        ok = await self._backend.write_register("0b62", hex_val)
-        if ok:
-            self._registers["0b62"] = hex_val
-        return ok
+        await self._backend.write_register("0b62", hex_val)
+        self._registers["0b62"] = hex_val
 
-    async def set_is_water_heater_enabled(self, value: WaterHeaterEnabled) -> bool:
+    async def set_is_water_heater_enabled(self, value: WaterHeaterEnabled) -> None:
         """Set water heater enabled (bit 4 of 0b55)."""
         current = self._get_register("0b55")
         new_hex = _encode_water_heater_enabled(value, 4, current)
 
         if new_hex is None:
-            logger.error("Failed to encode is_water_heater_enabled")
-            return False
+            raise ValueError("Failed to encode is_water_heater_enabled")
 
-        ok = await self._backend.write_register("0b55", new_hex)
-        if ok:
-            self._registers["0b55"] = new_hex
-        return ok
+        await self._backend.write_register("0b55", new_hex)
+        self._registers["0b55"] = new_hex
 
-    async def set_manual_temperature(self, value: float) -> bool:
+    async def set_manual_temperature(self, value: float) -> None:
         """Set manual temperature target (0b8d), °C."""
         hex_val = encode_scaled_x10(value, None)
         if hex_val is None:
-            logger.error("Failed to encode manual_temperature")
-            return False
+            raise ValueError("Failed to encode manual_temperature")
 
-        ok = await self._backend.write_register("0b8d", hex_val)
-        if ok:
-            self._registers["0b8d"] = hex_val
-        return ok
+        await self._backend.write_register("0b8d", hex_val)
+        self._registers["0b8d"] = hex_val
 
-    async def set_room_temperature_economy(self, value: float) -> bool:
+    async def set_room_temperature_economy(self, value: float) -> None:
         """Set room temperature economy (0b68), °C."""
-        return await self._set_scaled_x10("0b68", value)
+        await self._set_scaled_x10("0b68", value)
 
-    async def set_room_temperature_comfort(self, value: float) -> bool:
+    async def set_room_temperature_comfort(self, value: float) -> None:
         """Set room temperature comfort (0b6a), °C."""
-        return await self._set_scaled_x10("0b6a", value)
+        await self._set_scaled_x10("0b6a", value)
 
-    async def set_room_temperature_comfort_plus(self, value: float) -> bool:
+    async def set_room_temperature_comfort_plus(self, value: float) -> None:
         """Set room temperature comfort+ (0b6b), °C."""
-        return await self._set_scaled_x10("0b6b", value)
+        await self._set_scaled_x10("0b6b", value)
 
-    async def set_room_temperature_comfort_minus(self, value: float) -> bool:
+    async def set_room_temperature_comfort_minus(self, value: float) -> None:
         """Set room temperature comfort- (0b69), °C."""
-        return await self._set_scaled_x10("0b69", value)
+        await self._set_scaled_x10("0b69", value)
 
-    async def set_cwu_temperature_economy(self, value: float) -> bool:
+    async def set_cwu_temperature_economy(self, value: float) -> None:
         """Set CWU economy temperature (0b66), °C."""
-        return await self._set_scaled_x10("0b66", value)
+        await self._set_scaled_x10("0b66", value)
 
-    async def set_cwu_temperature_comfort(self, value: float) -> bool:
+    async def set_cwu_temperature_comfort(self, value: float) -> None:
         """Set CWU comfort temperature (0b67), °C."""
-        return await self._set_scaled_x10("0b67", value)
+        await self._set_scaled_x10("0b67", value)
 
-    async def set_party_vacation_end_minute(self, value: int) -> bool:
+    async def set_party_vacation_end_minute(self, value: int) -> None:
         """Set party/vacation end minute (0b6c)."""
-        return await self._set_raw_int("0b6c", value)
+        await self._set_raw_int("0b6c", value)
 
-    async def set_party_vacation_end_hour(self, value: int) -> bool:
+    async def set_party_vacation_end_hour(self, value: int) -> None:
         """Set party/vacation end hour (0b6d)."""
-        return await self._set_raw_int("0b6d", value)
+        await self._set_raw_int("0b6d", value)
 
-    async def set_party_vacation_end_day(self, value: int) -> bool:
+    async def set_party_vacation_end_day(self, value: int) -> None:
         """Set party/vacation end day (0b6e)."""
-        return await self._set_raw_int("0b6e", value)
+        await self._set_raw_int("0b6e", value)
 
-    async def set_party_vacation_end_month(self, value: int) -> bool:
+    async def set_party_vacation_end_month(self, value: int) -> None:
         """Set party/vacation end month (0b6f)."""
-        return await self._set_raw_int("0b6f", value)
+        await self._set_raw_int("0b6f", value)
 
-    async def set_party_vacation_end_year(self, value: int) -> bool:
+    async def set_party_vacation_end_year(self, value: int) -> None:
         """Set party/vacation end year (0b70)."""
-        return await self._set_raw_int("0b70", value)
+        await self._set_raw_int("0b70", value)
 
-    async def _set_scaled_x10(self, register: str, value: float) -> bool:
+    async def _set_scaled_x10(self, register: str, value: float) -> None:
         """Helper: write scaled_x10 value to register."""
         hex_val = encode_scaled_x10(value, None)
         if hex_val is None:
-            logger.error("Failed to encode scaled_x10 for %s", register)
-            return False
+            raise ValueError(f"Failed to encode scaled_x10 for {register}")
 
-        ok = await self._backend.write_register(register, hex_val)
-        if ok:
-            self._registers[register] = hex_val
-        return ok
+        await self._backend.write_register(register, hex_val)
+        self._registers[register] = hex_val
 
-    async def _set_raw_int(self, register: str, value: int) -> bool:
+    async def _set_raw_int(self, register: str, value: int) -> None:
         """Helper: write raw int to register."""
         hex_val = encode_raw_int(value, None)
         if hex_val is None:
-            logger.error("Failed to encode raw_int for %s", register)
-            return False
+            raise ValueError(f"Failed to encode raw_int for {register}")
 
-        ok = await self._backend.write_register(register, hex_val)
-        if ok:
-            self._registers[register] = hex_val
-        return ok
+        await self._backend.write_register(register, hex_val)
+        self._registers[register] = hex_val
 
     # --- Helper methods ---
 
-    async def set_manual_heating(self, temperature: float) -> bool:
+    async def set_manual_heating(self, temperature: float) -> None:
         """Set MANUAL mode and target temperature. Writes 0b55, 0b32, 0b8d."""
-        ok1 = await self.set_heater_mode(HeaterMode.MANUAL)
-        ok2 = await self.set_manual_temperature(temperature)
-        return ok1 and ok2
+        await self.set_heater_mode(HeaterMode.MANUAL)
+        await self.set_manual_temperature(temperature)
 
-    async def set_water_mode(self, mode: CwuMode) -> bool:
+    async def set_water_mode(self, mode: CwuMode) -> None:
         """Set CWU water mode (which temperature source is active)."""
         if not isinstance(mode, CwuMode):
             raise TypeError(f"mode must be CwuMode, got {type(mode).__name__}")
-        return await self.set_cwu_mode(mode.value)
+        await self.set_cwu_mode(mode.value)
 
-    async def set_water_comfort_temperature(self, temperature: float) -> bool:
+    async def set_water_comfort_temperature(self, temperature: float) -> None:
         """Set CWU comfort temperature (0b67), °C."""
-        return await self.set_cwu_temperature_comfort(temperature)
+        await self.set_cwu_temperature_comfort(temperature)
 
-    async def set_water_economy_temperature(self, temperature: float) -> bool:
+    async def set_water_economy_temperature(self, temperature: float) -> None:
         """Set CWU economy temperature (0b66), °C."""
-        return await self.set_cwu_temperature_economy(temperature)
+        await self.set_cwu_temperature_economy(temperature)
 
     # --- Convenience methods for HA integration ---
 

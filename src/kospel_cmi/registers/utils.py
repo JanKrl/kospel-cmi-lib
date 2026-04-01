@@ -11,7 +11,44 @@ utilities and should not be used directly in application code.
 import logging
 import struct
 
+from ..exceptions import RegisterValueInvalidError
+
 logger = logging.getLogger(__name__)
+
+
+def validate_register_hex(value: str) -> str:
+    """Validate on-wire register payload: exactly four hex digits (case-insensitive).
+
+    The device sends values in little-endian **wire** form (see ``reg_to_int`` /
+    ``int_to_reg``). This function only checks that the string is a valid opaque
+    4-character hex token; byte order and signed 16-bit interpretation happen in
+    ``reg_to_int``, not here.
+
+    Args:
+        value: Raw string from API or cache.
+
+    Returns:
+        Normalized lowercase four-character hex string.
+
+    Raises:
+        RegisterValueInvalidError: If value is not a valid register hex payload.
+    """
+    if not isinstance(value, str):
+        raise RegisterValueInvalidError(
+            f"Register value must be str, got {type(value).__name__}"
+        )
+    s = value.strip()
+    if len(s) != 4:
+        raise RegisterValueInvalidError(
+            f"Register value must be exactly 4 hex characters, got {value!r}"
+        )
+    try:
+        int(s, 16)
+    except ValueError as exc:
+        raise RegisterValueInvalidError(
+            f"Register value is not valid hexadecimal: {value!r}"
+        ) from exc
+    return s.lower()
 
 
 def int_to_reg(value: int) -> str:

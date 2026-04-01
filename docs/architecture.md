@@ -122,7 +122,7 @@ flowchart LR
 ## Architecture summary (for implementation)
 
 - **Controller** (`controller/device.py`): `Ekco_M3(backend: RegisterBackend)`. Device-specific class with explicit properties and async setters. Uses `backend.read_register`, `backend.read_registers`, `backend.write_register`. Writes happen immediately (no save/batch).
-- **RegisterBackend Protocol** (`kospel/backend.py`): methods `read_register(register) -> Optional[str]`, `read_registers(start_register, count) -> Dict[str, str]`, `write_register(register, hex_value) -> bool`. No transport-specific parameters.
+- **RegisterBackend Protocol** (`kospel/backend.py`): methods `read_register(register) -> str`, `read_registers(start_register, count) -> Dict[str, str]`, `write_register(register, hex_value) -> None` (raises on failure). No transport-specific parameters.
 - **HttpRegisterBackend** (`kospel/backend.py`): constructor `(session: aiohttp.ClientSession, api_base_url: str)`. Implements Protocol by calling the HTTP-only functions from `kospel/api.py` (no decorators, no `simulation_mode`).
 - **YamlRegisterBackend** (`kospel/backend.py`): constructor `(state_file: str)` — path required, no environment variable for file location. Delegates to `simulator.py` (function module) for YAML load/save; no separate "state" class.
 - **write_flag_bit**: Single implementation only (e.g. in `kospel/backend.py`). Signature: accepts a `RegisterBackend` plus `register`, `bit_index`, `state`; implements read-modify-write via `backend.read_register` and `backend.write_register` using `reg_to_int` / `set_bit` / `int_to_reg`. Not a method of the Protocol; not implemented in `kospel/api.py` or duplicated in backends.
