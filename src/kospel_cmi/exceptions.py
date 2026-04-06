@@ -35,6 +35,23 @@ class RegisterValueInvalidError(RegisterReadError):
     """A register value was present but is not a valid 4-character hex string."""
 
 
+class IncompleteRegisterRefreshError(RegisterReadError):
+    """Strict refresh: batch response omitted one or more required register addresses."""
+
+    def __init__(self, *, missing_registers: frozenset[str]) -> None:
+        """Initialize with the set of required addresses not present in the response.
+
+        Args:
+            missing_registers: Required register addresses absent from the batch map.
+        """
+        self.missing_registers = missing_registers
+        reg_list = ", ".join(sorted(missing_registers))
+        super().__init__(
+            f"Incomplete register batch: missing {len(missing_registers)} required "
+            f"register(s): {reg_list}"
+        )
+
+
 class KospelWriteError(KospelError):
     """Write was rejected by the device or could not be persisted."""
 
@@ -45,5 +62,6 @@ __all__ = [
     "RegisterReadError",
     "RegisterMissingError",
     "RegisterValueInvalidError",
+    "IncompleteRegisterRefreshError",
     "KospelWriteError",
 ]

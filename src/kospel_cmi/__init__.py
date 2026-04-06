@@ -1,6 +1,7 @@
 """Kospel C.MI electric heater HTTP API client."""
 
 from .exceptions import (
+    IncompleteRegisterRefreshError,
     KospelConnectionError,
     KospelError,
     KospelWriteError,
@@ -22,6 +23,7 @@ __all__ = [
     "KospelError",
     "KospelConnectionError",
     "KospelWriteError",
+    "IncompleteRegisterRefreshError",
     "MODEL_NAMES",
     "RegisterMissingError",
     "RegisterReadError",

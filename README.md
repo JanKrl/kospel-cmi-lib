@@ -8,7 +8,7 @@ This library provides a Python client for controlling Kospel C.MI electric heate
 
 - **Async-first**: Built on `asyncio` and `aiohttp` for non-blocking I/O
 - **Type-safe**: Strict type hinting throughout
-- **Device-specific API**: Explicit properties and async setters on `Ekco_M3`
+- **Device-specific API**: Explicit properties and async setters on `EkcoM3`
 - **Simulator-capable**: Full simulator for offline development and testing (no hardware required)
 - **Protocol-based**: Decoder/encoder interfaces via Python `Protocol` types
 - **Device discovery**: `probe_device()` and `discover_devices()` to find Kospel devices on the network (no device_id required)
@@ -36,11 +36,11 @@ pip install kospel-cmi-lib
 
 1. **Install**: `uv add kospel-cmi-lib` or `pip install kospel-cmi-lib`
 2. **Discover device**: Run `kospel-discover` or use `probe_device(session, "192.168.x.x")` to get `api_base_url`
-3. **Connect and read**: Create `Ekco_M3` with `HttpRegisterBackend(session, api_base_url)` and call `refresh()`
+3. **Connect and read**: Create `EkcoM3` with `HttpRegisterBackend(session, api_base_url)` and call `refresh()`
 
 ## Usage
 
-Create a register backend (HTTP or YAML) and pass it to `Ekco_M3`.
+Create a register backend (HTTP or YAML) and pass it to `EkcoM3`.
 When using `HttpRegisterBackend`, call `aclose()` or use the controller as an
 async context manager to release the HTTP session when done.
 
@@ -49,7 +49,7 @@ async context manager to release the HTTP session when done.
 ```python
 import asyncio
 import aiohttp
-from kospel_cmi.controller.device import Ekco_M3
+from kospel_cmi.controller.device import EkcoM3
 from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend
 from kospel_cmi.registers.enums import HeaterMode
 
@@ -58,7 +58,7 @@ async def main() -> None:
     api_base_url = "http://192.168.1.1/api/dev/65"  # Replace with your heater URL
     async with aiohttp.ClientSession() as session:
         backend = HttpRegisterBackend(session, api_base_url)
-        async with Ekco_M3(backend=backend) as controller:
+        async with EkcoM3(backend=backend) as controller:
             await controller.refresh()
             print(controller.heater_mode)  # Read property
             await controller.set_heater_mode(HeaterMode.MANUAL)  # Write immediately
@@ -71,7 +71,7 @@ asyncio.run(main())
 **Alternative: explicit `aclose()`** (for long-lived integrations):
 
 ```python
-controller = Ekco_M3(backend=HttpRegisterBackend(session, api_base_url))
+controller = EkcoM3(backend=HttpRegisterBackend(session, api_base_url))
 try:
     await controller.refresh()
     # ... use controller ...
@@ -83,7 +83,7 @@ For offline development or tests, use the YAML backend (no HTTP, no close needed
 
 ```python
 backend = YamlRegisterBackend(state_file="/path/to/state.yaml")
-controller = Ekco_M3(backend=backend)
+controller = EkcoM3(backend=backend)
 await controller.refresh()
 ```
 
@@ -117,14 +117,14 @@ async with aiohttp.ClientSession() as session:
 ```python
 import asyncio
 import aiohttp
-from kospel_cmi.controller.device import Ekco_M3
+from kospel_cmi.controller.device import EkcoM3
 from kospel_cmi.kospel.backend import HttpRegisterBackend
 from kospel_cmi.registers.enums import CwuMode, HeaterMode
 
 async def main():
     async with aiohttp.ClientSession() as session:
         backend = HttpRegisterBackend(session, "http://192.168.1.1/api/dev/65")
-        async with Ekco_M3(backend=backend) as controller:
+        async with EkcoM3(backend=backend) as controller:
             await controller.refresh()
 
             # Manual heating: mode + temperature in one call (recommended)
@@ -150,7 +150,7 @@ Module-specific documentation is co-located with the code (GitHub automatically 
 
 - **[kospel/](src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
-- **[controller/](src/kospel_cmi/controller/README.md)** - Ekco_M3 device class
+- **[controller/](src/kospel_cmi/controller/README.md)** - EkcoM3 device class
 - **[tools/](src/kospel_cmi/tools/README.md)** - Register scanner and live scanner for reverse-engineering
 
 ### Project Documentation

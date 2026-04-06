@@ -4,7 +4,7 @@ This guide is for contributors and developers working on the kospel-cmi-lib proj
 
 ## Adding New Settings
 
-To add a new setting to `Ekco_M3`:
+To add a new setting to `EkcoM3`:
 
 ### 1. Add property (read-only or read-write)
 
@@ -42,7 +42,7 @@ For more details, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_c
 
 ## Best Practices
 
-- **Use high-level API**: Prefer `Ekco_M3` (properties and setters) over direct register manipulation
+- **Use high-level API**: Prefer `EkcoM3` (properties and setters) over direct register manipulation
 - **Immediate writes**: Each `set_*()` writes immediately; no batching
 - **Avoid redundant calls**: Use `from_registers()` when you already have register data
 - **Error handling**: Check return values and handle `None` results appropriately

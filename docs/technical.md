@@ -9,7 +9,7 @@ The Kospel Heater Control Library is a Python-based system for controlling Kospe
 **Key Characteristics:**
 - **Async-first**: Built on `asyncio` and `aiohttp` for non-blocking I/O
 - **Type-safe**: Strict type hinting throughout with no `Any` types
-- **Device-specific API**: Explicit properties and async setters on `Ekco_M3`
+- **Device-specific API**: Explicit properties and async setters on `EkcoM3`
 - **Simulator-capable**: Full simulator implementation for offline development and testing
 - **Protocol-based**: Uses Python Protocol types for decoder/encoder interfaces
 
@@ -39,7 +39,7 @@ The system follows a strict 3-layer architecture with clear boundaries:
 
 > **See also**: For device class documentation, see [`../src/kospel_cmi/controller/README.md`](../src/kospel_cmi/controller/README.md).
 
-`Ekco_M3` is a device-specific class with explicit properties and async setters. Each setting is a property (read) or `set_*` method (write). Writes happen immediately; no `save()` or batching.
+`EkcoM3` is a device-specific class with explicit properties and async setters. Each setting is a property (read) or `set_*` method (write). Writes happen immediately; no `save()` or batching.
 
 - **Explicit API**: All settings are explicit properties; IDE support and type safety
 - **Immediate save**: Each setter writes to the device immediately
@@ -47,7 +47,7 @@ The system follows a strict 3-layer architecture with clear boundaries:
 
 **Usage:**
 ```python
-controller = Ekco_M3(backend=backend)
+controller = EkcoM3(backend=backend)
 await controller.refresh()
 mode = controller.heater_mode  # Read property
 await controller.set_heater_mode(HeaterMode.WINTER)  # Write immediately
@@ -60,7 +60,7 @@ Register read/write is abstracted behind a `RegisterBackend` Protocol. The contr
 - **Protocol** (`kospel/backend.py`): `read_register(register)`, `read_registers(start_register, count)`, `write_register(register, hex_value)`. No session, URL, or mode parameters.
 - **HttpRegisterBackend(session, api_base_url)**: implements the protocol via HTTP calls to the device.
 - **YamlRegisterBackend(state_file: str)**: implements the protocol using a YAML state file; the file path is a required constructor parameter (no environment variable).
-- **Construction**: The consumer creates backend and passes it to `Ekco_M3(backend=...)`.
+- **Construction**: The consumer creates backend and passes it to `EkcoM3(backend=...)`.
 - **write_flag_bit**: Single implementation in `kospel/backend.py` as a **function** that takes the backend as first argument: `write_flag_bit(backend, register, bit_index, state)`. It is not a method on the backend; it uses `backend.read_register` and `backend.write_register`. One implementation for all backends.
 - **Why Protocol**: The controller and `write_flag_bit` need “something that can read/write registers”. A Protocol lets any object with the right methods be used. Alternatives (e.g. passing three callables) would require the caller to build closures over `session`/`api_base_url` or `state_file`; the Protocol keeps that state inside the backend object and keeps the interface explicit.
 
@@ -186,8 +186,9 @@ Heater mode (bits 3, 5, 6, 7, 9): OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL �
 **YAML simulator (`kospel.simulator`)**:
 - Unchanged lenient behavior: missing registers still surface as `"0000"` for offline use. Write failures when persisting the file raise `KospelWriteError`.
 
-**Controller (`Ekco_M3`)**:
-- **`refresh()`**: On failure, the previous register cache is left unchanged. On success, the cache may be a **partial** map matching the batch response.
+**Controller (`EkcoM3`)**:
+- **`refresh()`**: On backend failure, the previous register cache is left unchanged. On success, the cache is replaced by the batch response map, which may still be **partial** (device may omit keys) unless strict mode applies.
+- **`strict_refresh`**: Pass `strict_refresh=True` to `EkcoM3`. Then each successful `read_registers` must include every address in **`EkcoM3.REQUIRED_REGISTERS`** (the union of registers used by public read-only properties). If any are missing, **`IncompleteRegisterRefreshError`** is raised (with **`missing_registers`**) and the **cache is not updated**. Default is `strict_refresh=False` (partial cache allowed).
 - **Reading properties**: Accessing a register that was never loaded into the cache raises `RegisterMissingError` (call `refresh()` or `from_registers()` with the needed keys first).
 - **Setters**: Raise on write failure (same types as the backend) instead of returning `False`.
 
@@ -202,7 +203,7 @@ Heater mode (bits 3, 5, 6, 7, 9): OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL �
 
 **Session Management**:
 - `aiohttp.ClientSession` passed explicitly (no global state)
-- When using `HttpRegisterBackend`, call `Ekco_M3.aclose()` when done, or use `async with Ekco_M3(backend=...)` to release the session automatically
+- When using `HttpRegisterBackend`, call `EkcoM3.aclose()` when done, or use `async with EkcoM3(backend=...)` to release the session automatically
 - Supports connection pooling and keep-alive
 
 **Function Signatures**:
@@ -245,7 +246,7 @@ Decoder(Protocol[T]): ...
 
 ### State Management
 
-**Ekco_M3 State**:
+**EkcoM3 State**:
 - `_registers: Dict[str, str]`: Cached raw register values
 
 **State Flow**:
@@ -292,14 +293,14 @@ This section applies when **embedding or vendoring** this library inside a Home 
 ```python
 # ✅ CORRECT: Relative imports within integration
 from .kospel.backend import HttpRegisterBackend, YamlRegisterBackend
-from .controller.device import Ekco_M3
+from .controller.device import EkcoM3
 from ..logging_config import get_logger
 
-controller = Ekco_M3(backend=...)
+controller = EkcoM3(backend=...)
 
 # ❌ INCORRECT: Absolute imports
 from kospel.backend import HttpRegisterBackend
-from controller.device import Ekco_M3
+from controller.device import EkcoM3
 from logging_config import get_logger
 ```
 
@@ -336,7 +337,7 @@ from logging_config import get_logger
 **Solution**: Registry defines settings declaratively, properties generated automatically.
 
 **Benefits**:
-- Add new settings by adding properties and setters to `Ekco_M3`
+- Add new settings by adding properties and setters to `EkcoM3`
 - Single source of truth for register mappings
 - Type safety through associated decode/encode functions
 
@@ -437,7 +438,7 @@ All tests are defined in `tests/` directory.
 ### Error Handling
 
 - **Explicit Handling**: Never pass exceptions silently
-- **Custom Exceptions**: Use `kospel_cmi.exceptions` (`KospelConnectionError`, `RegisterMissingError`, `RegisterValueInvalidError`, `KospelWriteError`, etc.)
+- **Custom Exceptions**: Use `kospel_cmi.exceptions` (`KospelConnectionError`, `RegisterMissingError`, `RegisterValueInvalidError`, `IncompleteRegisterRefreshError`, `KospelWriteError`, etc.)
 - **Logging**: Log errors with context
 - **HTTP/Simulator writes**: Raise on failure; do not use boolean success returns for writes
 
@@ -520,5 +521,5 @@ Detailed module-specific documentation is co-located with the code:
 
 - **[kospel/](../src/kospel_cmi/kospel/README.md)** - HTTP API endpoints and protocol
 - **[registers/](../src/kospel_cmi/registers/README.md)** - Register encoding, decoding, and mappings
-- **[controller/](../src/kospel_cmi/controller/README.md)** - Ekco_M3 device class
+- **[controller/](../src/kospel_cmi/controller/README.md)** - EkcoM3 device class
 
