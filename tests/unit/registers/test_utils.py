@@ -2,13 +2,15 @@
 
 import pytest
 
+from kospel_cmi.exceptions import RegisterValueInvalidError
 from kospel_cmi.registers.utils import (
-    reg_to_int,
     int_to_reg,
-    get_bit,
-    set_bit,
     int_to_reg_address,
     reg_address_to_int,
+    reg_to_int,
+    validate_register_hex,
+    get_bit,
+    set_bit,
 )
 
 
@@ -167,3 +169,21 @@ class TestIntToRegAddress:
             int_to_reg_address("0b", 256)
         with pytest.raises(ValueError, match="outside 8-bit address space"):
             int_to_reg_address("0b", -1)
+
+
+class TestValidateRegisterHex:
+    """Tests for validate_register_hex (wire-format validation)."""
+
+    def test_valid_returns_lowercase(self) -> None:
+        """Valid hex is normalized to lowercase."""
+        assert validate_register_hex("D700") == "d700"
+        assert validate_register_hex("0000") == "0000"
+
+    @pytest.mark.parametrize(
+        "invalid",
+        ["", "123", "12345", "d70g", "xxxx"],
+    )
+    def test_invalid_raises(self, invalid: str) -> None:
+        """Malformed values raise RegisterValueInvalidError."""
+        with pytest.raises(RegisterValueInvalidError):
+            validate_register_hex(invalid)

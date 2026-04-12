@@ -1,17 +1,17 @@
 # Device Controller
 
-`Ekco_M3` is a device-specific class for the Kospel C.MI Standard heater.
+`EkcoM3` is a device-specific class for the Kospel C.MI Standard heater.
 All settings and sensors are explicit properties; writes happen immediately (no `save()`).
 
 ## Usage
 
 ```python
-from kospel_cmi.controller.device import Ekco_M3
+from kospel_cmi.controller.device import EkcoM3
 from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend
 
-# Create device with backend
+# Create device with backend (optional strict_refresh=True for atomic snapshots)
 backend = HttpRegisterBackend(session, api_base_url)
-controller = Ekco_M3(backend=backend)
+controller = EkcoM3(backend=backend)
 
 # Refresh register data
 await controller.refresh()
@@ -54,3 +54,12 @@ await controller.set_water_comfort_temperature(38.0)
 - `set_water_mode(mode: CwuMode)` — CWU mode (ECONOMY, ANTI_FREEZE, COMFORT)
 - `set_water_comfort_temperature(temperature)` — CWU comfort temp only
 - `set_water_economy_temperature(temperature)` — CWU economy temp only
+
+## Refresh modes
+
+- **Default (`strict_refresh=False`)**: After `refresh()`, the cache holds whatever the batch returned (possibly incomplete). Missing keys surface as `RegisterMissingError` when reading a property.
+- **Strict (`strict_refresh=True`)**: After `refresh()`, either the cache is fully replaced with a batch that contains every address in **`EkcoM3.REQUIRED_REGISTERS`**, or **`IncompleteRegisterRefreshError`** is raised and the **previous cache is unchanged**.
+
+`REQUIRED_REGISTERS` is defined on the class and covers all public read-only properties. When adding a new read property, add its register address(es) to that set (see `device.py`).
+
+**Home Assistant:** Use `strict_refresh=True` and map `IncompleteRegisterRefreshError` to `UpdateFailed` in your data update coordinator so a bad partial snapshot does not leave entities in a misleading “available” state.

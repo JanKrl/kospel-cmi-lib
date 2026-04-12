@@ -5,6 +5,7 @@ from pathlib import Path
 import aiohttp
 import pytest
 
+from kospel_cmi.exceptions import RegisterMissingError
 from kospel_cmi.kospel.backend import HttpRegisterBackend, YamlRegisterBackend, write_flag_bit
 
 
@@ -47,8 +48,7 @@ class TestYamlRegisterBackend:
         """write_register persists value; read_register returns it."""
         state_file = str(tmp_path / "state.yaml")
         backend = YamlRegisterBackend(state_file=state_file)
-        ok = await backend.write_register("0b55", "d700")
-        assert ok is True
+        await backend.write_register("0b55", "d700")
         value = await backend.read_register("0b55")
         assert value == "d700"
 
@@ -72,45 +72,43 @@ class TestWriteFlagBit:
     """Tests for write_flag_bit with mock backend."""
 
     @pytest.mark.asyncio
-    async def test_write_flag_bit_returns_false_when_read_fails(self) -> None:
-        """write_flag_bit returns False when backend.read_register returns None."""
+    async def test_write_flag_bit_raises_when_read_fails(self) -> None:
+        """write_flag_bit propagates RegisterMissingError from read_register."""
 
         class FailingBackend:
-            async def read_register(self, register: str):  # noqa: ANN201
-                return None
+            async def read_register(self, register: str) -> str:
+                raise RegisterMissingError(register, detail="mock")
 
-            async def read_registers(self, start: str, count: int):  # noqa: ANN201
+            async def read_registers(self, start: str, count: int) -> dict:
                 return {}
 
-            async def write_register(self, register: str, hex_value: str):  # noqa: ANN201
-                return True
+            async def write_register(self, register: str, hex_value: str) -> None:
+                pass
 
-        result = await write_flag_bit(FailingBackend(), "0b55", 9, True)
-        assert result is False
+        with pytest.raises(RegisterMissingError):
+            await write_flag_bit(FailingBackend(), "0b55", 9, True)
 
     @pytest.mark.asyncio
     async def test_write_flag_bit_sets_bit_and_writes(self) -> None:
-        """write_flag_bit reads, sets bit, writes back; returns True."""
+        """write_flag_bit reads, sets bit, writes back."""
 
         class RecordingBackend:
             def __init__(self) -> None:
                 self.read_register_called: list[str] = []
                 self.write_register_called: list[tuple[str, str]] = []
 
-            async def read_register(self, register: str) -> str | None:
+            async def read_register(self, register: str) -> str:
                 self.read_register_called.append(register)
                 return "0000"  # bit 9 = 0
 
             async def read_registers(self, start: str, count: int) -> dict:
                 return {}
 
-            async def write_register(self, register: str, hex_value: str) -> bool:
+            async def write_register(self, register: str, hex_value: str) -> None:
                 self.write_register_called.append((register, hex_value))
-                return True
 
         backend = RecordingBackend()
-        result = await write_flag_bit(backend, "0b55", 9, True)
-        assert result is True
+        await write_flag_bit(backend, "0b55", 9, True)
         assert backend.read_register_called == ["0b55"]
         assert len(backend.write_register_called) == 1
         reg, hex_val = backend.write_register_called[0]
@@ -126,17 +124,15 @@ class TestWriteFlagBit:
             def __init__(self) -> None:
                 self.write_register_called: list[tuple[str, str]] = []
 
-            async def read_register(self, register: str) -> str | None:
+            async def read_register(self, register: str) -> str:
                 return "0002"  # bit 9 already set
 
             async def read_registers(self, start: str, count: int) -> dict:
                 return {}
 
-            async def write_register(self, register: str, hex_value: str) -> bool:
+            async def write_register(self, register: str, hex_value: str) -> None:
                 self.write_register_called.append((register, hex_value))
-                return True
 
         backend = RecordingBackend()
-        result = await write_flag_bit(backend, "0b55", 9, True)
-        assert result is True
+        await write_flag_bit(backend, "0b55", 9, True)
         assert backend.write_register_called == []

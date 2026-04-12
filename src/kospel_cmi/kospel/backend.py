@@ -29,18 +29,18 @@ logger = logging.getLogger(__name__)
 class RegisterBackend(Protocol):
     """Protocol for register read/write. No session, URL, or mode in method args."""
 
-    async def read_register(self, register: str) -> Optional[str]:
-        """Read a single register. Returns hex string or None if read failed."""
+    async def read_register(self, register: str) -> str:
+        """Read a single register. Returns hex string; raises on HTTP/invalid data."""
         ...
 
     async def read_registers(
         self, start_register: str, count: int
     ) -> Dict[str, str]:
-        """Read multiple registers. Returns dict of register address -> hex value."""
+        """Read multiple registers. May return a partial dict; raises on transport failure."""
         ...
 
-    async def write_register(self, register: str, hex_value: str) -> bool:
-        """Write a value to a single register. Returns True if write succeeded."""
+    async def write_register(self, register: str, hex_value: str) -> None:
+        """Write a value. Raises on failure."""
         ...
 
 
@@ -64,7 +64,7 @@ class HttpRegisterBackend:
         self._session = session
         self._api_base_url = api_base_url
 
-    async def read_register(self, register: str) -> Optional[str]:
+    async def read_register(self, register: str) -> str:
         """Read a single register from the device via HTTP."""
         return await kospel_api.read_register(
             self._session, self._api_base_url, register
@@ -78,9 +78,9 @@ class HttpRegisterBackend:
             self._session, self._api_base_url, start_register, count
         )
 
-    async def write_register(self, register: str, hex_value: str) -> bool:
+    async def write_register(self, register: str, hex_value: str) -> None:
         """Write a single register to the device via HTTP."""
-        return await kospel_api.write_register(
+        await kospel_api.write_register(
             self._session, self._api_base_url, register, hex_value
         )
 
@@ -107,7 +107,7 @@ class YamlRegisterBackend:
         """
         self._state_file = state_file
 
-    async def read_register(self, register: str) -> Optional[str]:
+    async def read_register(self, register: str) -> str:
         """Read a single register from the state file."""
         return await simulator_io.read_register(self._state_file, register)
 
@@ -119,11 +119,9 @@ class YamlRegisterBackend:
             self._state_file, start_register, count
         )
 
-    async def write_register(self, register: str, hex_value: str) -> bool:
+    async def write_register(self, register: str, hex_value: str) -> None:
         """Write a single register to the state file."""
-        return await simulator_io.write_register(
-            self._state_file, register, hex_value
-        )
+        await simulator_io.write_register(self._state_file, register, hex_value)
 
     async def aclose(self) -> None:
         """No-op: YAML backend uses open/close per operation, no persistent resources."""
@@ -135,7 +133,7 @@ async def write_flag_bit(
     register: str,
     bit_index: int,
     state: bool,
-) -> bool:
+) -> None:
     """
     Write a single flag bit using read-modify-write.
 
@@ -148,13 +146,10 @@ async def write_flag_bit(
         bit_index: Bit index to modify (0-15).
         state: True to set bit, False to clear bit.
 
-    Returns:
-        True if write succeeded or bit was already in desired state.
+    Raises:
+        Same as backend.read_register / backend.write_register on failure.
     """
     hex_val = await backend.read_register(register)
-    if hex_val is None:
-        logger.error(f"Flag bit write failed: Could not read {register}")
-        return False
 
     current_int = reg_to_int(hex_val)
     new_int = set_bit(current_int, bit_index, state)
@@ -171,6 +166,6 @@ async def write_flag_bit(
         logger.debug(
             f"Flag bit {bit_index} in register {register} already in desired state"
         )
-        return True
+        return
 
-    return await backend.write_register(register, new_hex_val)
+    await backend.write_register(register, new_hex_val)

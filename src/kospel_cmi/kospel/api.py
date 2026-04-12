@@ -2,14 +2,23 @@
 Dedicated module for HTTP API calls to the Kospel heater.
 
 This module contains only HTTP logic. Register backend abstraction (HTTP vs YAML)
-lives in kospel/backend.py; the controller uses a RegisterBackend, not this API directly.
+lives in kospel/backend.py; the controller uses a RegisterBackend, not this API
+directly.
 """
 
+import json
 import logging
-import aiohttp
-from typing import Optional, Dict
+from typing import Dict
 
-from ..registers.utils import reg_to_int
+import aiohttp
+
+from ..exceptions import (
+    KospelConnectionError,
+    KospelWriteError,
+    RegisterMissingError,
+    RegisterValueInvalidError,
+)
+from ..registers.utils import reg_to_int, validate_register_hex
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +27,7 @@ async def read_register(
     session: aiohttp.ClientSession,
     api_base_url: str,
     register: str,
-) -> Optional[str]:
+) -> str:
     """
     Read a single register from the heater.
 
@@ -28,30 +37,54 @@ async def read_register(
         register: Register address (e.g., "0b55")
 
     Returns:
-        Hex string value of the register, or None if read failed
+        Hex string value of the register.
+
+    Raises:
+        KospelConnectionError: On network/HTTP/JSON failure.
+        RegisterMissingError: If the response does not contain the register.
+        RegisterValueInvalidError: If the value is not valid hex.
     """
     url = f"{api_base_url}/{register}/1"
-    logger.debug(f"Reading register {register} from {url}")
+    logger.debug("Reading register %s from %s", register, url)
     try:
         async with session.get(url, timeout=5) as response:
             response.raise_for_status()
             data = await response.json()
-            regs = data.get("regs", {})
-            value = regs.get(register)
-            if value:
-                int_val = reg_to_int(value)
-                logger.debug(f"Register {register}: {value} ({int_val})")
-            else:
-                logger.warning(f"Register {register} not found in response")
-            return value
-    except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
-        logger.error(f"Error reading register {register}: {e}")
-        return None
-    except Exception as e:
-        logger.error(
-            f"Unexpected error reading register {register}: {e}", exc_info=True
+    except aiohttp.ClientError as e:
+        raise KospelConnectionError(
+            f"HTTP error reading register {register} from {url}"
+        ) from e
+    except json.JSONDecodeError as e:
+        raise KospelConnectionError(
+            f"Invalid JSON reading register {register} from {url}"
+        ) from e
+
+    if not isinstance(data, dict):
+        raise KospelConnectionError(
+            f"Unexpected response shape reading register {register}: "
+            "expected JSON object"
         )
-        return None
+
+    regs = data.get("regs", {})
+    if not isinstance(regs, dict):
+        raise KospelConnectionError(
+            f"Unexpected 'regs' field reading register {register}: expected object"
+        )
+
+    if register not in regs:
+        raise RegisterMissingError(register, detail="not present in device response")
+
+    raw = regs[register]
+    try:
+        validated = validate_register_hex(str(raw))
+    except RegisterValueInvalidError as e:
+        raise RegisterValueInvalidError(
+            f"Invalid hex for register {register}"
+        ) from e
+
+    int_val = reg_to_int(validated)
+    logger.debug("Register %s: %s (%s)", register, validated, int_val)
+    return validated
 
 
 async def read_registers(
@@ -63,6 +96,9 @@ async def read_registers(
     """
     Read multiple registers from the heater in a single batch call.
 
+    Partial responses are allowed: only keys returned by the device are included.
+    Each present value must be valid 4-character hex.
+
     Args:
         session: aiohttp ClientSession
         api_base_url: Base URL for the heater API
@@ -70,26 +106,58 @@ async def read_registers(
         count: Number of registers to read
 
     Returns:
-        Dictionary mapping register addresses to hex values
+        Dictionary mapping register addresses to hex values (subset of requested range).
+
+    Raises:
+        KospelConnectionError: On network/HTTP/JSON failure.
+        RegisterValueInvalidError: If any returned value is not valid hex.
     """
     url = f"{api_base_url}/{start_register}/{count}"
-    logger.debug(f"Reading {count} registers starting from {start_register} from {url}")
+    logger.debug(
+        "Reading %s registers starting from %s from %s", count, start_register, url
+    )
     try:
         async with session.get(url, timeout=5) as response:
             response.raise_for_status()
             data = await response.json()
-            regs = data.get("regs", {})
-            logger.debug(f"Read {len(regs)} registers from {start_register}")
-            return regs
-    except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
-        logger.error(f"Error reading registers from {start_register}: {e}")
-        return {}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error reading registers from {start_register}: {e}",
-            exc_info=True,
+    except aiohttp.ClientError as e:
+        raise KospelConnectionError(
+            f"HTTP error reading registers from {start_register} at {url}"
+        ) from e
+    except json.JSONDecodeError as e:
+        raise KospelConnectionError(
+            f"Invalid JSON reading registers from {start_register} at {url}"
+        ) from e
+
+    if not isinstance(data, dict):
+        raise KospelConnectionError(
+            f"Unexpected response shape reading registers from {start_register}: "
+            "expected JSON object"
         )
-        return {}
+
+    regs = data.get("regs", {})
+    if not isinstance(regs, dict):
+        raise KospelConnectionError(
+            "Unexpected 'regs' field in batch read: expected object"
+        )
+
+    out: Dict[str, str] = {}
+    for reg_addr, raw in regs.items():
+        if not isinstance(reg_addr, str):
+            raise KospelConnectionError(
+                f"Unexpected register key type in batch read: {type(reg_addr).__name__}"
+            )
+        try:
+            out[reg_addr] = validate_register_hex(str(raw))
+        except RegisterValueInvalidError as e:
+            raise RegisterValueInvalidError(
+                f"Invalid hex for register {reg_addr} in batch read"
+            ) from e
+
+    logger.debug(
+        "Read %s registers from %s (partial batch allowed)", len(out), start_register
+    )
+    return out
 
 
 async def write_register(
@@ -97,7 +165,7 @@ async def write_register(
     api_base_url: str,
     register: str,
     hex_value: str,
-) -> bool:
+) -> None:
     """
     Write a value to a single register.
 
@@ -107,29 +175,41 @@ async def write_register(
         register: Register address (e.g., "0b55")
         hex_value: Hex string value to write (e.g., "d700")
 
-    Returns:
-        True if write succeeded, False otherwise
+    Raises:
+        KospelConnectionError: On network/HTTP/JSON failure or unexpected response.
+        KospelWriteError: If the device reports a non-success status.
     """
     url = f"{api_base_url}/{register}"
     int_val = reg_to_int(hex_value)
-    logger.debug(f"Writing register {register}: {hex_value} ({int_val}) to {url}")
+    logger.debug(
+        "Writing register %s: %s (%s) to %s", register, hex_value, int_val, url
+    )
     try:
         async with session.post(url, json=hex_value, timeout=5) as response:
             response.raise_for_status()
             data = await response.json()
-            success = data.get("status") == "0"
-            if success:
-                logger.debug(f"Successfully wrote register {register}")
-            else:
-                logger.warning(
-                    f"Register {register} write returned non-zero status: {data.get('status')}"
-                )
-            return success
-    except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
-        logger.error(f"Error writing register {register}: {e}")
-        return False
-    except Exception as e:
-        logger.error(
-            f"Unexpected error writing register {register}: {e}", exc_info=True
+    except aiohttp.ClientError as e:
+        raise KospelConnectionError(
+            f"HTTP error writing register {register} to {url}"
+        ) from e
+    except json.JSONDecodeError as e:
+        raise KospelConnectionError(
+            f"Invalid JSON after write to register {register} at {url}"
+        ) from e
+
+    if not isinstance(data, dict):
+        raise KospelConnectionError(
+            f"Unexpected response shape after write to {register}: expected JSON object"
         )
-        return False
+
+    status = data.get("status")
+    if status == "0":
+        logger.debug("Successfully wrote register %s", register)
+        return
+
+    logger.warning(
+        "Register %s write returned non-zero status: %s", register, status
+    )
+    raise KospelWriteError(
+        f"Device rejected write to register {register}: status={status!r}"
+    )

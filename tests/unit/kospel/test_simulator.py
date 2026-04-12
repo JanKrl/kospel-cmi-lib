@@ -23,8 +23,7 @@ class TestSimulatorModule:
     async def test_write_register_and_read_roundtrip(self, tmp_path: Path) -> None:
         """write_register(state_file, ...) persists; read_register reads it back."""
         state_file = str(tmp_path / "state.yaml")
-        ok = await simulator.write_register(state_file, "0b55", "d700")
-        assert ok is True
+        await simulator.write_register(state_file, "0b55", "d700")
         value = await simulator.read_register(state_file, "0b55")
         assert value == "d700"
 

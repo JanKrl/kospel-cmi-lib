@@ -17,7 +17,7 @@ Module-specific documentation is co-located with the code:
 
 - [kospel/](../src/kospel_cmi/kospel/README.md) — HTTP API endpoints, backends, and device discovery
 - [registers/](../src/kospel_cmi/registers/README.md) — Register encoding, decoding, and mappings
-- [controller/](../src/kospel_cmi/controller/README.md) — Ekco_M3 device class
+- [controller/](../src/kospel_cmi/controller/README.md) — EkcoM3 device class
 - [tools/](../src/kospel_cmi/tools/README.md) — Register scanner, live scanner, and discovery CLI
 
 ## Suggested Reading Order
