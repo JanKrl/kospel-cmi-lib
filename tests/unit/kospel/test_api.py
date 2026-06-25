@@ -88,6 +88,19 @@ async def test_read_registers_invalid_entry_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_read_registers_skips_empty_values() -> None:
+    """read_registers skips empty string values and returns only valid entries."""
+    with aioresponses.aioresponses() as m:
+        m.get(
+            f"{BASE}/0b00/4",
+            payload={"regs": {"0b00": "0100", "0b8e": ""}},
+        )
+        async with aiohttp.ClientSession() as session:
+            regs = await read_registers(session, BASE, "0b00", 4)
+            assert regs == {"0b00": "0100"}
+
+
+@pytest.mark.asyncio
 async def test_write_register_success_returns_none() -> None:
     """write_register completes without error on status 0."""
     with aioresponses.aioresponses() as m:

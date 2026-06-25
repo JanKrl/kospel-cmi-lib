@@ -147,8 +147,17 @@ async def read_registers(
             raise KospelConnectionError(
                 f"Unexpected register key type in batch read: {type(reg_addr).__name__}"
             )
+        raw_value = str(raw)
+        if raw is None or raw_value.strip() == "":
+            logger.debug(
+                "Skipping register %s with unparsed batch value %r from %s",
+                reg_addr,
+                raw,
+                start_register,
+            )
+            continue
         try:
-            out[reg_addr] = validate_register_hex(str(raw))
+            out[reg_addr] = validate_register_hex(raw_value)
         except RegisterValueInvalidError as e:
             raise RegisterValueInvalidError(
                 f"Invalid hex for register {reg_addr} in batch read"
