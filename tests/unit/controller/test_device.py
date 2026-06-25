@@ -215,6 +215,25 @@ class TestEkcoM3:
         assert "0b32" not in written_registers
 
     @pytest.mark.asyncio
+    async def test_outside_temperature_off_property_decodes_0b74(self) -> None:
+        """outside_temperature_off reads 0b74 as °C."""
+        backend = MockRegisterBackend({"0b74": "c800"})
+        controller = EkcoM3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        assert controller.outside_temperature_off == 20.0
+
+    @pytest.mark.asyncio
+    async def test_set_outside_temperature_off_writes_0b74_only(self) -> None:
+        """set_outside_temperature_off writes only 0b74."""
+        backend = MockRegisterBackend({"0b74": "0000", "0b32": "0100"})
+        controller = EkcoM3(backend=backend)
+        controller.from_registers(await backend.read_registers("0b00", 256))
+        await controller.set_outside_temperature_off(20.0)
+        written_registers = {r for r, _ in backend.writes}
+        assert written_registers == {"0b74"}
+        assert backend.registers["0b74"] == "c800"
+
+    @pytest.mark.asyncio
     async def test_set_manual_heating_writes_mode_and_temp_registers(
         self,
     ) -> None:

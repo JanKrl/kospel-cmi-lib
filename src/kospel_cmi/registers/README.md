@@ -74,6 +74,7 @@ Register values may vary per device type / version. Currently the project includ
 - `0b2f`: Water temperature setting
 - `0b4a`: Water current temperature
 - `0b4c`: Outside temperature
+- `0b74`: Outside temperature off threshold
 - `0b48`: Inlet temperature
 - `0b49`: Outlet temperature
 - `0b44`: Factor

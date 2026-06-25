@@ -86,6 +86,7 @@ _EKCOM3_READ_REGISTERS: frozenset[str] = frozenset(
         "0b6e",
         "0b6f",
         "0b70",
+        "0b74",
         "0b8a",
         "0b8d",
     }
@@ -270,6 +271,11 @@ class EkcoM3:
     def outside_temperature(self) -> Optional[float]:
         """Outside temperature (0b4c), °C."""
         return decode_scaled_x10(self._get_register("0b4c"))
+
+    @property
+    def outside_temperature_off(self) -> Optional[float]:
+        """Outside temperature off threshold (0b74), °C."""
+        return decode_scaled_x10(self._get_register("0b74"))
 
     @property
     def supply_setpoint(self) -> Optional[float]:
@@ -464,6 +470,10 @@ class EkcoM3:
 
         await self._backend.write_register("0b8d", hex_val)
         self._registers["0b8d"] = hex_val
+
+    async def set_outside_temperature_off(self, value: float) -> None:
+        """Set outside temperature off threshold (0b74), °C."""
+        await self._set_scaled_x10("0b74", value)
 
     async def set_room_temperature_economy(self, value: float) -> None:
         """Set room temperature economy (0b68), °C."""
