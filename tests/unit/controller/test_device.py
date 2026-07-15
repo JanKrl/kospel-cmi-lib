@@ -295,11 +295,12 @@ class TestEkcoM3:
         assert written_registers == {"0b66"}
         assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian
 
-    def test_boiler_max_power_index_decodes_0b62(self) -> None:
+    @pytest.mark.asyncio
+    async def test_boiler_max_power_index_decodes_0b62(self) -> None:
         """boiler_max_power_index reads 0b62 as int."""
         backend = MockRegisterBackend({"0b62": "0200", "0b34": "3c00"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers({"0b62": "0200", "0b34": "3c00"})
+        controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.boiler_max_power_index == 2
 
     @pytest.mark.asyncio
@@ -310,11 +311,12 @@ class TestEkcoM3:
         controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.boiler_max_power_kw == 6.0
 
-    def test_available_boiler_max_power_settings(self) -> None:
+    @pytest.mark.asyncio
+    async def test_available_boiler_max_power_settings(self) -> None:
         """available_boiler_max_power_settings dynamically queries 0b35 onwards."""
         backend = MockRegisterBackend({"0b35": "0300", "0b36": "2800", "0b37": "3c00", "0b38": "5000"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers({"0b35": "0300", "0b36": "2800", "0b37": "3c00", "0b38": "5000"})
+        controller.from_registers(await backend.read_registers("0b00", 256))
         assert controller.available_boiler_max_power_settings == [4.0, 6.0, 8.0]
 
     @pytest.mark.asyncio
