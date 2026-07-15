@@ -192,10 +192,10 @@ Interfejs odświeża ekran startowy odczytem 30 rejestrów od 0b2f. Poniżej map
 
 | Rejestr | Znaczenie |
 |---------|-----------|
-| 0b25 | Indeks (7 rejestrów) |
-| 0b34 | Moc kotła | ×10 kW |
-| 0b35 | Indeks (6 rejestrów) |
-| 0b62 | Moc kotła (konfiguracja) |
+| 0b25 | Ilość dostępnych opcji wysokości podnoszenia pompy | Kolejne rejestry (od `0b26`) zawierają wartości dla każdego indeksu (0, 1, 2...) |
+| 0b34 | Aktualna moc kotła | ×10 kW |
+| 0b35 | Ilość dostępnych opcji maksymalnej mocy kotła | Kolejne rejestry (od `0b36`) zawierają wartości (w ×10 kW) dla każdego indeksu (0, 1, 2...). Liczba opcji zależy od sprzętu. |
+| 0b62 | Wybrany indeks maksymalnej mocy kotła | Zapisywany jako indeks (0, 1, 2...) wybranej z listy opcji zdefiniowanej w `0b35`. Nie wpisujemy tu wartości kW! |
 | 0b7f | Tryb pracy: 0=podstawowy, 1=źródło ciepła, 2=bufor |
 | 0b8a | Tryb pracy: 0=CO, 1=źródło ciepła, 2=bufor |
 | 0be5 | Tryb pracy min (zakres) |
