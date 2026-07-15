@@ -193,7 +193,7 @@ Heater mode (bits 3, 5, 6, 7, 9): OFF, SUMMER, WINTER, PARTY, VACATION, MANUAL â
 - **Setters**: Raise on write failure (same types as the backend) instead of returning `False`.
 
 **Application-level validation**:
-- Invalid enum/range arguments may raise `ValueError` or `TypeError` with a clear message (e.g. invalid `BoilerMaxPowerIndex`).
+- Invalid enum/range arguments may raise `ValueError` or `TypeError` with a clear message (e.g. max power index out of dynamically queried bounds).
 
 ## Implementation Details
 
@@ -265,6 +265,12 @@ Decoder(Protocol[T]): ...
 - Group writes by register address
 - Read-modify-write pattern for registers with multiple settings
 - Only write if value actually changed
+
+### Dynamic Hardware Capabilities
+
+Certain settings on Kospel devices, such as the maximum power limit and the pump lift options, depend entirely on the specific physical hardware unit connected.
+- **Max Power Limit:** Instead of a static enum of options, the device reports the length of available power settings in register `0b35` and uses subsequent registers (`0b36`, `0b37`, etc.) to provide the specific kW value options. The currently selected index is stored in `0b62`.
+- **Stateless Integration:** Because these hardware capabilities never change during runtime, and because `refresh()` fetches 256 registers starting at `0b00` (which inherently captures these arrays), the library derives these lists dynamically on the fly from the cached register snapshot rather than performing any custom initialization queries or maintaining separate metadata state.
 
 ### YAML / simulator (function module)
 
