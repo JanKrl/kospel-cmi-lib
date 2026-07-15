@@ -9,7 +9,6 @@ from kospel_cmi.exceptions import (
     RegisterMissingError,
 )
 from kospel_cmi.registers.enums import (
-    BoilerMaxPowerIndex,
     CwuMode,
     HeaterMode,
     HeatingStatus,
@@ -297,12 +296,12 @@ class TestEkcoM3:
         assert backend.registers["0b66"] == "5e01"  # 35.0 in little-endian
 
     @pytest.mark.asyncio
-    async def test_boiler_max_power_index_decodes_0b62(self) -> None:
-        """boiler_max_power_index reads 0b62 as BoilerMaxPowerIndex."""
+    def test_boiler_max_power_index_decodes_0b62(self) -> None:
+        """boiler_max_power_index reads 0b62 as int."""
         backend = MockRegisterBackend({"0b62": "0200", "0b34": "3c00"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers(await backend.read_registers("0b00", 256))
-        assert controller.boiler_max_power_index == BoilerMaxPowerIndex.KW_6
+        controller.from_registers({"0b62": "0200", "0b34": "3c00"})
+        assert controller.boiler_max_power_index == 2
 
     @pytest.mark.asyncio
     async def test_boiler_max_power_kw_decodes_0b34(self) -> None:
@@ -313,20 +312,21 @@ class TestEkcoM3:
         assert controller.boiler_max_power_kw == 6.0
 
     @pytest.mark.asyncio
-    async def test_boiler_max_power_index_unknown_raw_returns_none(self) -> None:
-        """boiler_max_power_index is None when 0b62 is outside enum range."""
-        backend = MockRegisterBackend({"0b62": "0500"})
+    def test_available_boiler_max_power_settings(self) -> None:
+        """available_boiler_max_power_settings dynamically queries 0b35 onwards."""
+        backend = MockRegisterBackend({"0b35": "0300", "0b36": "2800", "0b37": "3c00", "0b38": "5000"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers(await backend.read_registers("0b00", 256))
-        assert controller.boiler_max_power_index is None
+        controller.from_registers({"0b35": "0300", "0b36": "2800", "0b37": "3c00", "0b38": "5000"})
+        assert controller.available_boiler_max_power_settings == [4.0, 6.0, 8.0]
 
     @pytest.mark.asyncio
     async def test_set_boiler_max_power_index_writes_0b62_only(self) -> None:
         """set_boiler_max_power_index writes 0b62 and does not write 0b34."""
-        backend = MockRegisterBackend({"0b62": "0100", "0b34": "2800"})
+        # 0b35: 4 items (0400), we select index 2
+        backend = MockRegisterBackend({"0b35": "0400", "0b62": "0100", "0b34": "2800"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers(await backend.read_registers("0b00", 256))
-        await controller.set_boiler_max_power_index(BoilerMaxPowerIndex.KW_6)
+        controller.from_registers({"0b35": "0400", "0b62": "0100", "0b34": "2800"})
+        await controller.set_boiler_max_power_index(2)
         written_registers = {r for r, _ in backend.writes}
         assert written_registers == {"0b62"}
         assert backend.registers["0b62"] == "0200"
@@ -334,24 +334,16 @@ class TestEkcoM3:
         assert controller._registers["0b62"] == "0200"
 
     @pytest.mark.asyncio
-    async def test_set_boiler_max_power_index_accepts_int(self) -> None:
-        """set_boiler_max_power_index accepts int in valid range."""
-        backend = MockRegisterBackend({"0b62": "0000"})
-        controller = EkcoM3(backend=backend)
-        controller.from_registers(await backend.read_registers("0b00", 256))
-        await controller.set_boiler_max_power_index(3)
-        assert backend.registers["0b62"] == "0300"
-
-    @pytest.mark.asyncio
     async def test_set_boiler_max_power_index_raises_on_invalid_index(
         self,
     ) -> None:
         """set_boiler_max_power_index raises ValueError for out-of-range index."""
-        backend = MockRegisterBackend({"0b62": "0100"})
+        # Only 2 items available (0..1)
+        backend = MockRegisterBackend({"0b35": "0200", "0b62": "0100"})
         controller = EkcoM3(backend=backend)
-        controller.from_registers(await backend.read_registers("0b00", 256))
+        controller.from_registers({"0b35": "0200", "0b62": "0100"})
         with pytest.raises(ValueError, match="boiler_max_power_index"):
-            await controller.set_boiler_max_power_index(4)
+            await controller.set_boiler_max_power_index(2)
         with pytest.raises(ValueError, match="boiler_max_power_index"):
             await controller.set_boiler_max_power_index(-1)
 

@@ -28,7 +28,6 @@ from ..registers.encoders import (
 )
 from ..registers.enums import (
     ROOM_MODE_MANUAL,
-    BoilerMaxPowerIndex,
     CwuMode,
     HeaterMode,
     HeatingCircuitActive,
@@ -36,6 +35,8 @@ from ..registers.enums import (
     ValvePosition,
     WaterHeaterEnabled,
 )
+from ..registers.utils import int_to_reg_address
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,6 @@ _encode_water_heater_enabled = encode_map(
     WaterHeaterEnabled.ENABLED, WaterHeaterEnabled.DISABLED
 )
 
-# All registers used by public read-only properties on EkcoM3 (strict refresh).
 _EKCOM3_READ_REGISTERS: frozenset[str] = frozenset(
     {
         "0b2f",
@@ -63,6 +63,7 @@ _EKCOM3_READ_REGISTERS: frozenset[str] = frozenset(
         "0b31",
         "0b32",
         "0b34",
+        "0b35",
         "0b46",
         "0b48",
         "0b49",
@@ -293,15 +294,32 @@ class EkcoM3:
         return decode_scaled_x10(self._get_register("0b46"))
 
     @property
-    def boiler_max_power_index(self) -> Optional[BoilerMaxPowerIndex]:
+    def boiler_max_power_index(self) -> Optional[int]:
         """Max boiler power step index (0b62). Use ``set_boiler_max_power_index``."""
-        raw = decode_raw_int(self._get_register("0b62"))
-        if raw is None:
-            return None
+        return decode_raw_int(self._get_register("0b62"))
+
+    @property
+    def available_boiler_max_power_settings(self) -> list[float]:
+        """Available max power settings (kW) dynamically queried from the heater."""
         try:
-            return BoilerMaxPowerIndex(raw)
-        except ValueError:
-            return None
+            count = decode_raw_int(self._get_register("0b35"))
+        except RegisterMissingError:
+            return []
+        
+        if not count:
+            return []
+            
+        options = []
+        for i in range(count):
+            reg_addr = int_to_reg_address("0b", 0x36 + i)
+            try:
+                val = decode_scaled_x10(self._get_register(reg_addr))
+                if val is not None:
+                    options.append(val)
+            except RegisterMissingError:
+                continue
+                
+        return options
 
     @property
     def boiler_max_power_kw(self) -> Optional[float]:
@@ -433,16 +451,16 @@ class EkcoM3:
         self._registers["0b30"] = hex_val
 
     async def set_boiler_max_power_index(
-        self, value: BoilerMaxPowerIndex | int
+        self, value: int
     ) -> None:
-        """Set max boiler power step (0b62)."""
+        """Set max boiler power step index (0b62)."""
         idx = int(value)
-        try:
-            BoilerMaxPowerIndex(idx)
-        except ValueError as exc:
+        
+        available = self.available_boiler_max_power_settings
+        if available and not (0 <= idx < len(available)):
             raise ValueError(
-                f"boiler_max_power_index must be 0..3 (BoilerMaxPowerIndex), got {idx}"
-            ) from exc
+                f"boiler_max_power_index {idx} is out of bounds for available settings {available}"
+            )
 
         hex_val = encode_raw_int(idx, None)
         if hex_val is None:
