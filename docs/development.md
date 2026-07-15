@@ -95,12 +95,33 @@ pytest --cov=src/kospel_cmi --cov-report=html
 
 ## Code Style and Standards
 
-See [`technical.md`](technical.md) for detailed coding standards, including:
+### Type Hinting
 
-- Type hinting requirements
-- Documentation standards
-- Error handling patterns
-- Async programming guidelines
+- **Strict Typing**: All functions must have complete type hints
+- **No Any**: Avoid `Any` type unless absolutely necessary
+- **Protocol Types**: Use for structural typing
+- **Optional Returns**: Use `Optional[T]` for nullable returns
+
+### Documentation
+
+- **Google-style Docstrings**: All public classes and methods
+- **Parameter Documentation**: Document all parameters and return values
+- **Example Usage**: Include examples where helpful
+- **Comments and docstrings**: Explain *why*, not *what*
+
+### Error Handling
+
+- **Explicit Handling**: Never pass exceptions silently
+- **Custom Exceptions**: Use `kospel_cmi.exceptions` (`KospelConnectionError`, `RegisterMissingError`, `RegisterValueInvalidError`, `IncompleteRegisterRefreshError`, `KospelWriteError`, etc.)
+- **Logging**: Log errors with context
+- **HTTP/Simulator writes**: Raise on failure; do not use boolean success returns for writes
+
+### Code Style
+
+- **PEP 8**: Follow Python style guide
+- **Ruff**: Automated linting and formatting
+- **Line Length**: 88 characters (Black-compatible)
+- **Import Organization**: Standard library → third-party → local
 
 ## Architecture
 

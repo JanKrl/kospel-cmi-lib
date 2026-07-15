@@ -387,67 +387,13 @@ from logging_config import get_logger
 - **Package Manager**: `uv` (modern Python package manager)
 - **Lock File**: `uv.lock` (reproducible builds)
 
-## Testing Strategy
+## Workflow and Standards
 
-Automated tests are defined using `pytest` framework. After every set of changes, tests must be ran to verify that the library works as expected.
+For implementation details regarding:
+- **Testing Strategy** (TDD, Integration, Simulator testing)
+- **Coding Standards** (Type Hinting, Documentation, Error Handling, Code Style)
 
-### Test Organization
-
-All tests are defined in `tests/` directory.
-
-### Testing Principles
-
-1. **TDD Approach**: Write tests before or alongside implementation
-2. **Layer Isolation**: Test each layer independently
-3. **Mock External I/O**: Mock HTTP requests/responses
-4. **Coverage Target**: ≥80% code coverage
-5. **Async Testing**: Use `pytest-asyncio` for async functions
-
-### Test Types
-
-**Unit Tests**:
-- Test individual functions in isolation
-- Mock external dependencies
-- Test edge cases and error conditions
-
-**Integration Tests**:
-- Test cross-layer functionality
-- Use mock HTTP responses
-- Test end-to-end workflows
-
-**Simulator Mode Tests**:
-- Simulator tests should only verify if the simulator itself works as expected
-- No end-to-end tests should be defined for cases with and without the simulator
-
-## Coding Standards
-
-### Type Hinting
-
-- **Strict Typing**: All functions must have complete type hints
-- **No Any**: Avoid `Any` type unless absolutely necessary
-- **Protocol Types**: Use for structural typing
-- **Optional Returns**: Use `Optional[T]` for nullable returns
-
-### Documentation
-
-- **Google-style Docstrings**: All public classes and methods
-- **Parameter Documentation**: Document all parameters and return values
-- **Example Usage**: Include examples where helpful
-- **Comments and docstrings**: Explain *why*, not *what*
-
-### Error Handling
-
-- **Explicit Handling**: Never pass exceptions silently
-- **Custom Exceptions**: Use `kospel_cmi.exceptions` (`KospelConnectionError`, `RegisterMissingError`, `RegisterValueInvalidError`, `IncompleteRegisterRefreshError`, `KospelWriteError`, etc.)
-- **Logging**: Log errors with context
-- **HTTP/Simulator writes**: Raise on failure; do not use boolean success returns for writes
-
-### Code Style
-
-- **PEP 8**: Follow Python style guide
-- **Ruff**: Automated linting and formatting
-- **Line Length**: 88 characters (Black-compatible)
-- **Import Organization**: Standard library → third-party → local
+Please refer to the [Development Guide](development.md) which serves as the single source of truth for the project's development workflow.
 
 ## Performance Considerations
 
